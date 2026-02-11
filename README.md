@@ -36,7 +36,7 @@ When you use Claude Code across multiple projects and terminal windows, it's eas
 
 ```bash
 # Clone this repo
-git clone https://github.com/NoblesseNL/claude-sessions-dashboard.git
+git clone https://github.com/RobinEste/claude-sessions-dashboard.git
 
 # Copy to Claude Code's config directory
 cp -r claude-sessions-dashboard/* ~/.claude/dashboard/
@@ -78,6 +78,32 @@ Add to your `~/.claude/settings.json` to keep sessions alive automatically:
 ```
 
 This runs after every Claude Code turn and updates the heartbeat for active sessions (throttled to once per 15 minutes).
+
+### 4. Auto-start on login (macOS, optional)
+
+To keep the web dashboard running automatically:
+
+```bash
+# Create logs directory
+mkdir -p ~/.claude/dashboard/logs
+
+# Copy the example plist and edit it
+cp examples/launchd/com.claude.sessions-dashboard.plist ~/Library/LaunchAgents/
+
+# Edit the plist: replace YOUR_USERNAME and set the correct python3 path
+# Find your python3 path with: which python3
+nano ~/Library/LaunchAgents/com.claude.sessions-dashboard.plist
+
+# Load the agent
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.claude.sessions-dashboard.plist
+```
+
+The dashboard will now:
+- Start automatically when you log in
+- Restart if it crashes (`KeepAlive`)
+- Log to `~/.claude/dashboard/logs/`
+
+To stop: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.claude.sessions-dashboard.plist`
 
 ## Usage
 
