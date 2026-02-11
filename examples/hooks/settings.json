@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/dashboard/heartbeat.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

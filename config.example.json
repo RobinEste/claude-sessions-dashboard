@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "projects": {},
+  "settings": {
+    "dashboard_port": 9000,
+    "stale_threshold_hours": 24,
+    "archive_after_days": 30
+  }
+}

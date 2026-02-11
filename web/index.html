@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Sessions Dashboard</title>
+<style>
+  :root {
+    --bg: #22272e;
+    --bg-card: #2d333b;
+    --bg-hover: #373e47;
+    --border: #444c56;
+    --text: #adbac7;
+    --text-muted: #768390;
+    --text-bright: #cdd9e5;
+    --accent-green: #57ab5a;
+    --accent-blue: #539bf5;
+    --accent-orange: #c69026;
+    --accent-red: #e5534b;
+    --accent-purple: #986ee2;
+    --radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 24px;
+    max-width: 960px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+  }
+
+  header h1 {
+    color: var(--text-bright);
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  header .updated {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Filter bar */
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 4px 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .filter-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+
+  .filter-btn.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #fff;
+  }
+
+  .filter-count {
+    font-size: 11px;
+    opacity: 0.8;
+    margin-left: 4px;
+  }
+
+  /* Session cards */
+  .session-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+  }
+
+  .session-card:hover {
+    border-color: var(--text-muted);
+  }
+
+  .card-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .expand-icon {
+    color: var(--text-muted);
+    font-size: 10px;
+    width: 14px;
+    text-align: center;
+    flex-shrink: 0;
+    transition: transform 0.15s;
+  }
+
+  .session-card.expanded .expand-icon {
+    transform: rotate(90deg);
+  }
+
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .dot-active { background: var(--accent-green); }
+  .dot-stale { background: var(--accent-orange); }
+  .dot-parked { background: var(--accent-blue); }
+  .dot-completed { background: var(--text-muted); }
+
+  .card-intent {
+    color: var(--text-bright);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+  }
+
+  .card-activity {
+    color: var(--text-muted);
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .card-tags {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+
+  .tag {
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+
+  .tag-ref {
+    background: rgba(152, 110, 226, 0.15);
+    color: var(--accent-purple);
+  }
+
+  .tag-stale {
+    background: rgba(198, 144, 38, 0.15);
+    color: var(--accent-orange);
+    font-weight: 600;
+  }
+
+  .tag-project {
+    background: rgba(83, 155, 245, 0.15);
+    color: var(--accent-blue);
+  }
+
+  .card-time {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Expanded detail panel */
+  .card-detail {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 16px;
+  }
+
+  .session-card.expanded .card-detail {
+    display: block;
+  }
+
+  .detail-section {
+    margin-bottom: 12px;
+  }
+
+  .detail-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .detail-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+  }
+
+  .detail-branch {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    background: rgba(83, 155, 245, 0.1);
+    padding: 0 6px;
+    border-radius: 4px;
+    color: var(--accent-blue);
+  }
+
+  .detail-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  /* Event log — timeline */
+  .event-list {
+    list-style: none;
+    position: relative;
+    padding-left: 12px;
+  }
+
+  .event-list::before {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background: var(--border);
+    border-radius: 1px;
+  }
+
+  .event-item {
+    display: flex;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 13px;
+    position: relative;
+  }
+
+  .event-item::before {
+    content: '';
+    position: absolute;
+    left: -11px;
+    top: 10px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  .event-time {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 50px;
+  }
+
+  .event-msg {
+    color: var(--text);
+  }
+
+  /* Detail lists */
+  .detail-list {
+    list-style: none;
+  }
+
+  .detail-list li {
+    padding: 2px 0;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .detail-list li::before {
+    content: '  ';
+  }
+
+  .detail-list.files li::before {
+    content: '';
+    color: var(--accent-blue);
+    margin-right: 4px;
+  }
+
+  .detail-list.decisions li::before {
+    content: '';
+    margin-right: 4px;
+  }
+
+  .detail-list.questions li::before {
+    content: '? ';
+    color: var(--accent-orange);
+    margin-right: 4px;
+  }
+
+  .detail-outcome {
+    font-size: 13px;
+    color: var(--text);
+    padding: 4px 0;
+  }
+
+  .detail-reason {
+    font-size: 13px;
+    color: var(--accent-orange);
+    font-style: italic;
+    padding: 4px 0;
+  }
+
+  .empty-msg {
+    color: var(--text-muted);
+    font-size: 13px;
+    font-style: italic;
+    padding: 20px 0;
+    text-align: center;
+  }
+
+  .error-banner {
+    background: var(--accent-red);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-bottom: 16px;
+    display: none;
+  }
+
+  /* Project header */
+  .project-header {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 4px;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .project-group:first-child .project-header {
+    margin-top: 0;
+  }
+
+  .project-header h2 {
+    color: var(--text-bright);
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .project-phase {
+    font-size: 12px;
+    color: var(--accent-purple);
+    background: rgba(152, 110, 226, 0.12);
+    padding: 1px 8px;
+    border-radius: 10px;
+  }
+
+  .project-stats {
+    display: flex;
+    gap: 12px;
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .project-stats .stat-value {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  /* Event count badge */
+  .tag-events {
+    background: rgba(173, 186, 199, 0.1);
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Commits list */
+  .detail-list.commits li {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+  }
+
+  .detail-list.commits li::before {
+    content: '';
+  }
+
+  .commit-sha {
+    color: var(--accent-blue);
+    margin-right: 6px;
+  }
+
+  .commit-msg {
+    color: var(--text);
+  }
+
+  /* Next steps list */
+  .detail-list.next-steps li::before {
+    content: '\2192  ';
+    color: var(--accent-green);
+    margin-right: 2px;
+  }
+
+  /* Show all events button */
+  .show-all-events {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--accent-blue);
+    font-size: 12px;
+    padding: 3px 10px;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: all 0.15s;
+  }
+
+  .show-all-events:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+  }
+
+  footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-muted);
+    display: flex;
+    gap: 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Claude Sessions</h1>
+  <span class="updated" id="last-update">loading...</span>
+</header>
+
+<div class="error-banner" id="error-banner"></div>
+<div class="filters" id="filters"></div>
+<div id="sessions"></div>
+
+<footer id="footer"></footer>
+
+<script>
+const POLL_INTERVAL = 30000;
+let errorCount = 0;
+let currentFilter = 'all';
+let expandedIds = new Set();
+let lastData = null;
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  return days + (days === 1 ? ' day' : ' days') + ' ago';
+}
+
+function formatTime(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDuration(startIso, endIso) {
+  if (!startIso || !endIso) return '';
+  const ms = new Date(endIso).getTime() - new Date(startIso).getTime();
+  const mins = Math.round(ms / 60000);
+  if (mins < 1) return '< 1 min';
+  if (mins < 60) return mins + ' min';
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return hrs + 'h' + (rem > 0 ? ' ' + rem + 'm' : '');
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function collectSessions(data) {
+  const sessions = [];
+  for (const p of data.projects) {
+    for (const s of (p.active_sessions || [])) {
+      sessions.push({ ...s, type: 'active', project_name: p.name, project_slug: p.slug });
+    }
+    for (const s of (p.parked_sessions || [])) {
+      sessions.push({ ...s, type: 'parked', project_name: p.name, project_slug: p.slug });
+    }
+    for (const s of (p.completed_sessions || [])) {
+      sessions.push({ ...s, type: 'completed', project_name: p.name, project_slug: p.slug });
+    }
+  }
+  return sessions;
+}
+
+function filterSessions(sessions, filter) {
+  if (filter === 'all') return sessions;
+  if (filter === 'active') return sessions.filter(s => s.type === 'active');
+  if (filter === 'parked') return sessions.filter(s => s.type === 'parked');
+  if (filter === 'completed') return sessions.filter(s => s.type === 'completed');
+  return sessions;
+}
+
+function renderFilters(sessions) {
+  const counts = { all: sessions.length, active: 0, parked: 0, completed: 0 };
+  for (const s of sessions) counts[s.type]++;
+
+  const labels = {
+    all: 'All',
+    active: 'Active',
+    parked: 'Parked',
+    completed: 'Completed'
+  };
+
+  let html = '';
+  for (const [key, label] of Object.entries(labels)) {
+    const active = currentFilter === key ? ' active' : '';
+    html += '<button class="filter-btn' + active + '" data-filter="' + key + '">';
+    html += label + '<span class="filter-count">(' + counts[key] + ')</span>';
+    html += '</button>';
+  }
+  return html;
+}
+
+function renderCardRow(s) {
+  const isExpanded = expandedIds.has(s.session_id);
+
+  let dotClass = 'dot-active';
+  if (s.type === 'parked') dotClass = 'dot-parked';
+  else if (s.type === 'completed') dotClass = 'dot-completed';
+  else if (s.is_stale) dotClass = 'dot-stale';
+
+  let time = '';
+  if (s.type === 'active') time = timeAgo(s.last_heartbeat || s.started_at);
+  else if (s.type === 'parked') time = timeAgo(s.ended_at);
+  else if (s.type === 'completed') time = timeAgo(s.ended_at);
+
+  let html = '<div class="session-card' + (isExpanded ? ' expanded' : '') + '" data-id="' + esc(s.session_id) + '">';
+  html += '<div class="card-row" onclick="toggleCard(\'' + esc(s.session_id) + '\')">';
+  html += '<span class="expand-icon">&#9654;</span>';
+  html += '<span class="dot ' + dotClass + '"></span>';
+  html += '<span class="card-intent">' + esc(s.intent) + '</span>';
+
+  if (s.current_activity) {
+    html += '<span class="card-activity">' + esc(s.current_activity) + '</span>';
+  } else {
+    html += '<span class="card-activity"></span>';
+  }
+
+  html += '<span class="card-tags">';
+  if (s.roadmap_ref) {
+    html += '<span class="tag tag-ref">' + esc(s.roadmap_ref) + '</span>';
+  }
+  if (s.is_stale) {
+    html += '<span class="tag tag-stale">STALE</span>';
+  }
+  const evtCount = s.event_count || (s.events || []).length;
+  if (evtCount > 0) {
+    html += '<span class="tag tag-events">' + evtCount + ' events</span>';
+  }
+  html += '<span class="tag tag-project">' + esc(s.project_name) + '</span>';
+  html += '</span>';
+
+  html += '<span class="card-time">' + esc(time) + '</span>';
+  html += '</div>';
+
+  // Detail panel
+  html += '<div class="card-detail">';
+  html += renderDetail(s);
+  html += '</div>';
+
+  html += '</div>';
+  return html;
+}
+
+function renderDetail(s) {
+  let html = '';
+
+  // Session meta info
+  html += '<div class="detail-section">';
+  html += '<div class="detail-meta">';
+  html += '<span>' + esc(s.session_id) + '</span>';
+  html += '<span>' + esc(s.project_name) + '</span>';
+  if (s.git_branch) html += '<span class="detail-branch">' + esc(s.git_branch) + '</span>';
+  if (s.started_at) html += '<span>Started: ' + formatTime(s.started_at) + '</span>';
+  if (s.ended_at) html += '<span>Ended: ' + formatTime(s.ended_at) + '</span>';
+  const dur = formatDuration(s.started_at, s.ended_at);
+  if (dur) html += '<span>Duration: ' + dur + '</span>';
+  html += '</div>';
+  html += '</div>';
+
+  // Event log
+  const events = s.events || [];
+  const totalEventCount = s.event_count || events.length;
+  if (events.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Event log' + (totalEventCount > events.length ? ' (' + events.length + ' of ' + totalEventCount + ')' : '') + '</div>';
+    html += '<ul class="event-list" id="events-' + esc(s.session_id) + '">';
+    const reversed = [...events].reverse();
+    for (const e of reversed) {
+      html += '<li class="event-item">';
+      html += '<span class="event-time">' + formatTime(e.timestamp) + '</span>';
+      html += '<span class="event-msg">' + esc(e.message) + '</span>';
+      html += '</li>';
+    }
+    html += '</ul>';
+    if (totalEventCount > events.length) {
+      html += '<button class="show-all-events" onclick="loadAllEvents(\'' + esc(s.session_id) + '\')">Show all events (' + totalEventCount + ')</button>';
+    }
+    html += '</div>';
+  }
+
+  // Outcome (completed)
+  if (s.type === 'completed' && s.outcome) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Outcome</div>';
+    html += '<div class="detail-outcome">' + esc(s.outcome) + '</div>';
+    html += '</div>';
+  }
+
+  // Parked reason
+  if (s.type === 'parked' && s.parked_reason) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Parked reason</div>';
+    html += '<div class="detail-reason">' + esc(s.parked_reason) + '</div>';
+    html += '</div>';
+  }
+
+  // Files changed
+  const files = s.files_changed || [];
+  if (files.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Files changed (' + files.length + ')</div>';
+    html += '<ul class="detail-list files">';
+    for (const f of files) {
+      html += '<li>' + esc(f) + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
+
+  // Commits
+  const commits = s.commits || [];
+  if (commits.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Commits (' + commits.length + ')</div>';
+    html += '<ul class="detail-list commits">';
+    for (const c of commits) {
+      const sha = (c.sha || '').substring(0, 7);
+      html += '<li><span class="commit-sha">' + esc(sha) + '</span><span class="commit-msg">' + esc(c.message || '') + '</span></li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
+
+  // Next steps
+  const nextSteps = s.next_steps || [];
+  if (nextSteps.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Next steps</div>';
+    html += '<ul class="detail-list next-steps">';
+    for (const ns of nextSteps) {
+      html += '<li>' + esc(ns) + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
+
+  // Decisions
+  const decisions = s.decisions || [];
+  if (decisions.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Decisions</div>';
+    html += '<ul class="detail-list decisions">';
+    for (const d of decisions) {
+      html += '<li>' + esc(d) + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
+
+  // Open questions
+  const questions = s.open_questions || [];
+  if (questions.length > 0) {
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Open questions</div>';
+    html += '<ul class="detail-list questions">';
+    for (const q of questions) {
+      html += '<li>' + esc(q) + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function toggleCard(id) {
+  if (expandedIds.has(id)) {
+    expandedIds.delete(id);
+  } else {
+    expandedIds.add(id);
+  }
+  render();
+}
+
+function renderProjectHeader(p) {
+  let html = '<div class="project-header">';
+  html += '<h2>' + esc(p.name) + '</h2>';
+  if (p.current_phase) {
+    html += '<span class="project-phase">' + esc(p.current_phase) + '</span>';
+  }
+  html += '<div class="project-stats">';
+  html += '<span>Sessions: <span class="stat-value">' + p.total_sessions + '</span></span>';
+  if (p.active_count > 0) {
+    html += '<span>Active: <span class="stat-value">' + p.active_count + '</span></span>';
+  }
+  if (p.parked_count > 0) {
+    html += '<span>Parked: <span class="stat-value">' + p.parked_count + '</span></span>';
+  }
+  const rs = p.roadmap_summary || {};
+  if (rs.completed_count > 0 || rs.in_progress_count > 0) {
+    html += '<span>Roadmap: <span class="stat-value">' + (rs.completed_count || 0) + ' done, ' + (rs.in_progress_count || 0) + ' active</span></span>';
+  }
+  if (p.last_activity) {
+    html += '<span>Last: ' + timeAgo(p.last_activity) + '</span>';
+  }
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+async function loadAllEvents(sessionId) {
+  try {
+    const resp = await fetch('/api/session/' + encodeURIComponent(sessionId));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const full = await resp.json();
+    updateSessionInData(sessionId, { events: full.events, event_count: full.events.length });
+    render();
+  } catch (err) {
+    console.error('Failed to load all events:', err);
+  }
+}
+
+function updateSessionInData(sessionId, updates) {
+  if (!lastData) return;
+  for (const p of lastData.projects) {
+    for (const list of [p.active_sessions, p.parked_sessions, p.completed_sessions]) {
+      for (const s of (list || [])) {
+        if (s.session_id === sessionId) {
+          Object.assign(s, updates);
+          return;
+        }
+      }
+    }
+  }
+}
+
+function render() {
+  if (!lastData) return;
+
+  const all = collectSessions(lastData);
+  const filtered = filterSessions(all, currentFilter);
+
+  // Filters
+  document.getElementById('filters').innerHTML = renderFilters(all);
+
+  // Bind filter clicks
+  for (const btn of document.querySelectorAll('.filter-btn')) {
+    btn.addEventListener('click', function() {
+      currentFilter = this.dataset.filter;
+      render();
+    });
+  }
+
+  // Session cards grouped by project
+  const container = document.getElementById('sessions');
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty-msg">No sessions found</div>';
+  } else {
+    let html = '';
+    for (const p of lastData.projects) {
+      const projectSessions = filtered.filter(s => s.project_slug === p.slug);
+      if (projectSessions.length === 0) continue;
+      html += '<div class="project-group">';
+      html += renderProjectHeader(p);
+      html += projectSessions.map(renderCardRow).join('');
+      html += '</div>';
+    }
+    container.innerHTML = html || '<div class="empty-msg">No sessions found</div>';
+  }
+}
+
+async function refresh() {
+  try {
+    const resp = await fetch('/api/overview');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    lastData = await resp.json();
+
+    document.getElementById('last-update').textContent =
+      'Updated: ' + new Date(lastData.timestamp).toLocaleTimeString();
+
+    render();
+
+    // Footer
+    const s = lastData.settings;
+    document.getElementById('footer').innerHTML =
+      '<span>Port: ' + s.dashboard_port + '</span>' +
+      '<span>Stale after: ' + s.stale_threshold_hours + 'h</span>' +
+      '<span>Archive after: ' + s.archive_after_days + ' days</span>' +
+      '<span>Poll: every ' + (POLL_INTERVAL / 1000) + 's</span>';
+
+    errorCount = 0;
+    document.getElementById('error-banner').style.display = 'none';
+
+  } catch (err) {
+    errorCount++;
+    const banner = document.getElementById('error-banner');
+    banner.textContent = 'Connection failed (' + errorCount + 'x): ' + err.message;
+    banner.style.display = 'block';
+  }
+}
+
+// Initial load + polling
+refresh();
+setInterval(refresh, POLL_INTERVAL);
+</script>
+</body>
+</html>
