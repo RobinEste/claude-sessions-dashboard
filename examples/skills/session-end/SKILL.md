@@ -25,6 +25,14 @@ Run the end-of-session checklist, close the session in the dashboard, and verify
 
 - Run your project's lint/test/build commands
 
+### Step 3.5: Capture commits
+
+Capture all git commits made during this session:
+```bash
+python3 ~/.claude/dashboard/manage.py capture-commits <session_id> \
+  --repo-path <absolute path to project root>
+```
+
 ### Step 4: Close session in dashboard
 
 1. **Find the active session** for this project:

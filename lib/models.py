@@ -38,6 +38,7 @@ class Session:
     outcome: str | None = None
     parked_reason: str | None = None
     current_activity: str | None = None
+    awaiting_action: str | None = None  # Reason user action is needed
     events: list[dict] = field(default_factory=list)
     git_branch: str = "main"
     files_changed: list[str] = field(default_factory=list)

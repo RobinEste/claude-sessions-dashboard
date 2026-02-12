@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -74,6 +76,31 @@ def main() -> None:
 
     p = sub.add_parser("heartbeat-project", help="Heartbeat all active sessions for a project")
     p.add_argument("project_slug")
+
+    p = sub.add_parser("add-commit", help="Add a commit to a session")
+    p.add_argument("session_id")
+    p.add_argument("--sha", required=True, help="Commit SHA")
+    p.add_argument("--message", required=True, help="Commit message")
+
+    p = sub.add_parser("add-decision", help="Add a decision to a session")
+    p.add_argument("session_id")
+    p.add_argument("--decision", required=True, help="Decision text")
+
+    p = sub.add_parser("capture-commits", help="Capture git commits since session start")
+    p.add_argument("session_id")
+    p.add_argument("--repo-path", required=True, help="Path to git repository")
+
+    p = sub.add_parser("request-action", help="Mark session as awaiting user action")
+    p.add_argument("session_id")
+    p.add_argument("--reason", required=True, help="Why user action is needed")
+
+    p = sub.add_parser("clear-action", help="Clear awaiting action flag")
+    p.add_argument("session_id")
+
+    # --- Multi-project setup ---
+    p = sub.add_parser("setup", help="Install dashboard skills in a project")
+    p.add_argument("--project-path", required=True, help="Path to target project")
+    p.add_argument("--project-name", help="Display name (default: folder name)")
 
     # --- Session queries ---
     p = sub.add_parser("active-sessions", help="List active sessions")
@@ -157,6 +184,28 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         session = store.add_event(args.session_id, args.message)
         return asdict(session) if session else {"error": "Session not found"}
 
+    if cmd == "add-commit":
+        session = store.add_commit(args.session_id, args.sha, args.message)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "add-decision":
+        session = store.add_decision(args.session_id, args.decision)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "capture-commits":
+        return _capture_commits(args.session_id, args.repo_path)
+
+    if cmd == "request-action":
+        session = store.request_action(args.session_id, args.reason)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "clear-action":
+        session = store.clear_action(args.session_id)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "setup":
+        return _setup_project(args.project_path, args.project_name)
+
     if cmd == "heartbeat":
         session = store.heartbeat(args.session_id)
         return asdict(session) if session else {"error": "Session not found"}
@@ -232,6 +281,74 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         return {}  # never reached — uvicorn runs until interrupted
 
     return {"error": f"Unknown command: {cmd}"}
+
+
+def _capture_commits(session_id: str, repo_path: str) -> dict:
+    """Capture git commits made since session start and add them to the session."""
+    session = store.get_session(session_id)
+    if not session:
+        return {"error": "Session not found"}
+
+    try:
+        result = subprocess.run(
+            [
+                "git", "log",
+                f"--since={session.started_at}",
+                "--format=%H|%s",
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        return {"error": f"Git command failed: {e}"}
+
+    if result.returncode != 0:
+        return {"error": f"git log failed: {result.stderr.strip()}"}
+
+    added = 0
+    for line in result.stdout.strip().splitlines():
+        if "|" not in line:
+            continue
+        sha, message = line.split("|", 1)
+        before = len(session.commits)
+        session = store.add_commit(session_id, sha.strip(), message.strip())
+        if session and len(session.commits) > before:
+            added += 1
+
+    return {"captured": added, "total_commits": len(session.commits) if session else 0}
+
+
+def _setup_project(project_path: str, project_name: str | None) -> dict:
+    """Install dashboard skills in a target project and register it."""
+    project_dir = Path(project_path).resolve()
+    if not project_dir.is_dir():
+        return {"error": f"Directory not found: {project_path}"}
+
+    name = project_name or project_dir.name
+    examples_dir = Path(__file__).resolve().parent / "examples" / "skills"
+
+    installed = []
+    for skill_dir in sorted(examples_dir.iterdir()):
+        if not skill_dir.is_dir():
+            continue
+        target = project_dir / ".claude" / "skills" / skill_dir.name
+        target.mkdir(parents=True, exist_ok=True)
+        for src_file in skill_dir.iterdir():
+            dst_file = target / src_file.name
+            if not dst_file.exists():
+                shutil.copy2(src_file, dst_file)
+                installed.append(str(dst_file.relative_to(project_dir)))
+
+    slug = store.register_project(name, str(project_dir))
+
+    return {
+        "slug": slug,
+        "project_path": str(project_dir),
+        "skills_installed": installed,
+        "message": f"Skills installed. Use /session-start to begin tracking.",
+    }
 
 
 def _serve(host: str, port: int) -> None:

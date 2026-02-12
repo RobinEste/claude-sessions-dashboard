@@ -177,6 +177,7 @@ def _session_from_dict(data: dict) -> Session:
         outcome=data.get("outcome"),
         parked_reason=data.get("parked_reason"),
         current_activity=data.get("current_activity"),
+        awaiting_action=data.get("awaiting_action"),
         events=data.get("events", []),
         git_branch=data.get("git_branch", "main"),
         files_changed=data.get("files_changed", []),
@@ -233,6 +234,58 @@ def add_event(session_id: str, message: str) -> Session | None:
         return None
 
     session.events.append({"timestamp": _now_iso(), "message": message})
+    session.last_heartbeat = _now_iso()
+    _save_session(session)
+    return session
+
+
+def add_commit(session_id: str, sha: str, message: str) -> Session | None:
+    """Append a commit to the session. Deduplicates on SHA[:7]."""
+    session = get_session(session_id)
+    if not session:
+        return None
+
+    short_sha = sha[:7]
+    existing = {(c.get("sha", "")[:7]) for c in session.commits}
+    if short_sha not in existing:
+        session.commits.append({"sha": sha, "message": message})
+    session.last_heartbeat = _now_iso()
+    _save_session(session)
+    return session
+
+
+def add_decision(session_id: str, decision: str) -> Session | None:
+    """Append a decision to the session. Deduplicates on text."""
+    session = get_session(session_id)
+    if not session:
+        return None
+
+    if decision not in session.decisions:
+        session.decisions.append(decision)
+    session.last_heartbeat = _now_iso()
+    _save_session(session)
+    return session
+
+
+def request_action(session_id: str, reason: str) -> Session | None:
+    """Mark a session as awaiting user action."""
+    session = get_session(session_id)
+    if not session:
+        return None
+
+    session.awaiting_action = reason
+    session.last_heartbeat = _now_iso()
+    _save_session(session)
+    return session
+
+
+def clear_action(session_id: str) -> Session | None:
+    """Clear the awaiting_action flag."""
+    session = get_session(session_id)
+    if not session:
+        return None
+
+    session.awaiting_action = None
     session.last_heartbeat = _now_iso()
     _save_session(session)
     return session
@@ -532,6 +585,7 @@ def build_overview() -> dict:
                         "last_heartbeat": s.last_heartbeat,
                         "is_stale": s.session_id in stale_ids,
                         "current_activity": s.current_activity,
+                        "awaiting_action": s.awaiting_action,
                         "roadmap_ref": s.roadmap_ref,
                         "events": s.events[-5:],
                         "git_branch": s.git_branch,
@@ -550,6 +604,7 @@ def build_overview() -> dict:
                         "intent": s.intent,
                         "parked_reason": s.parked_reason,
                         "current_activity": s.current_activity,
+                        "awaiting_action": s.awaiting_action,
                         "roadmap_ref": s.roadmap_ref,
                         "events": s.events[-5:],
                         "git_branch": s.git_branch,
@@ -571,6 +626,7 @@ def build_overview() -> dict:
                         "outcome": s.outcome,
                         "started_at": s.started_at,
                         "ended_at": s.ended_at,
+                        "last_heartbeat": s.last_heartbeat,
                         "roadmap_ref": s.roadmap_ref,
                         "events": s.events[-5:],
                         "files_changed": s.files_changed,

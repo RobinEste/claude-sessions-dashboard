@@ -133,6 +133,7 @@
   }
 
   .dot-active { background: var(--accent-green); }
+  .dot-action { background: var(--accent-red); }
   .dot-stale { background: var(--accent-orange); }
   .dot-parked { background: var(--accent-blue); }
   .dot-completed { background: var(--text-muted); }
@@ -179,6 +180,12 @@
   .tag-stale {
     background: rgba(198, 144, 38, 0.15);
     color: var(--accent-orange);
+    font-weight: 600;
+  }
+
+  .tag-action {
+    background: rgba(229, 83, 75, 0.15);
+    color: var(--accent-red);
     font-weight: 600;
   }
 
@@ -509,6 +516,17 @@ function formatDuration(startIso, endIso) {
   return hrs + 'h' + (rem > 0 ? ' ' + rem + 'm' : '');
 }
 
+function formatElapsed(startIso) {
+  if (!startIso) return '';
+  const ms = Date.now() - new Date(startIso).getTime();
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return '< 1m';
+  if (mins < 60) return mins + 'm';
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return hrs + 'h' + (rem > 0 ? ' ' + rem + 'm' : '');
+}
+
 function esc(s) {
   if (!s) return '';
   const d = document.createElement('div');
@@ -564,13 +582,16 @@ function renderFilters(sessions) {
 function renderCardRow(s) {
   const isExpanded = expandedIds.has(s.session_id);
 
+  // Dot priority: awaiting_action > stale > active
   let dotClass = 'dot-active';
   if (s.type === 'parked') dotClass = 'dot-parked';
   else if (s.type === 'completed') dotClass = 'dot-completed';
+  else if (s.awaiting_action) dotClass = 'dot-action';
   else if (s.is_stale) dotClass = 'dot-stale';
 
+  // Time display: elapsed for active, timeAgo for others
   let time = '';
-  if (s.type === 'active') time = timeAgo(s.last_heartbeat || s.started_at);
+  if (s.type === 'active') time = formatElapsed(s.started_at);
   else if (s.type === 'parked') time = timeAgo(s.ended_at);
   else if (s.type === 'completed') time = timeAgo(s.ended_at);
 
@@ -580,22 +601,30 @@ function renderCardRow(s) {
   html += '<span class="dot ' + dotClass + '"></span>';
   html += '<span class="card-intent">' + esc(s.intent) + '</span>';
 
-  if (s.current_activity) {
-    html += '<span class="card-activity">' + esc(s.current_activity) + '</span>';
-  } else {
-    html += '<span class="card-activity"></span>';
+  // Activity text: current_activity, or outcome for completed sessions
+  let activity = s.current_activity || '';
+  if (!activity && s.type === 'completed' && s.outcome) {
+    activity = s.outcome.length > 60 ? s.outcome.substring(0, 57) + '...' : s.outcome;
   }
+  html += '<span class="card-activity">' + esc(activity) + '</span>';
 
   html += '<span class="card-tags">';
+  if (s.awaiting_action) {
+    html += '<span class="tag tag-action">ACTION: ' + esc(s.awaiting_action) + '</span>';
+  }
   if (s.roadmap_ref) {
     html += '<span class="tag tag-ref">' + esc(s.roadmap_ref) + '</span>';
   }
-  if (s.is_stale) {
+  if (s.is_stale && !s.awaiting_action) {
     html += '<span class="tag tag-stale">STALE</span>';
   }
   const evtCount = s.event_count || (s.events || []).length;
   if (evtCount > 0) {
     html += '<span class="tag tag-events">' + evtCount + ' events</span>';
+  }
+  const commitCount = (s.commits || []).length;
+  if (commitCount > 0) {
+    html += '<span class="tag tag-events">' + commitCount + ' commits</span>';
   }
   html += '<span class="tag tag-project">' + esc(s.project_name) + '</span>';
   html += '</span>';
@@ -622,9 +651,16 @@ function renderDetail(s) {
   html += '<span>' + esc(s.project_name) + '</span>';
   if (s.git_branch) html += '<span class="detail-branch">' + esc(s.git_branch) + '</span>';
   if (s.started_at) html += '<span>Started: ' + formatTime(s.started_at) + '</span>';
-  if (s.ended_at) html += '<span>Ended: ' + formatTime(s.ended_at) + '</span>';
-  const dur = formatDuration(s.started_at, s.ended_at);
-  if (dur) html += '<span>Duration: ' + dur + '</span>';
+  if (s.ended_at) {
+    html += '<span>Ended: ' + formatTime(s.ended_at) + '</span>';
+    const dur = formatDuration(s.started_at, s.ended_at);
+    if (dur) html += '<span>Duration: ' + dur + '</span>';
+  } else if (s.type === 'active' && s.started_at) {
+    html += '<span>Running: ' + formatElapsed(s.started_at) + '</span>';
+  }
+  if (s.type === 'active' && s.last_heartbeat) {
+    html += '<span>Last active: ' + timeAgo(s.last_heartbeat) + '</span>';
+  }
   html += '</div>';
   html += '</div>';
 
