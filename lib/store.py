@@ -6,9 +6,13 @@ when parallel sessions write simultaneously.
 
 from __future__ import annotations
 
+import fcntl
 import json
+import logging
 import os
+import secrets
 import tempfile
+from contextlib import contextmanager
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,6 +64,23 @@ def _atomic_write(path: Path, data: dict) -> None:
 
 def _slugify(name: str) -> str:
     return name.lower().replace(" ", "-").replace("_", "-")
+
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _session_lock(session_id: str):
+    """Acquire an exclusive file lock for a session's read-modify-write cycle."""
+    _ensure_dirs()
+    lock_path = SESSIONS_DIR / f"{session_id}.lock"
+    lock_fd = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 
 
 # ---------------------------------------------------------------------------
@@ -185,6 +206,7 @@ def _session_from_dict(data: dict) -> Session:
         decisions=data.get("decisions", []),
         open_questions=data.get("open_questions", []),
         next_steps=data.get("next_steps", []),
+        tasks=data.get("tasks", []),
     )
 
 
@@ -196,10 +218,12 @@ def _save_session(session: Session) -> None:
 
 def heartbeat(session_id: str) -> Session | None:
     """Update last_heartbeat timestamp. Only for active sessions."""
-    session = get_session(session_id)
-    if session and session.status == SessionStatus.ACTIVE:
-        session.last_heartbeat = _now_iso()
-        _save_session(session)
+    session = None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if session and session.status == SessionStatus.ACTIVE:
+            session.last_heartbeat = _now_iso()
+            _save_session(session)
     return session
 
 
@@ -207,88 +231,167 @@ def heartbeat_project(project_slug: str) -> list[Session]:
     """Update heartbeat for ALL active sessions of a project."""
     updated = []
     for session in get_active_sessions(project_slug):
-        session.last_heartbeat = _now_iso()
-        _save_session(session)
-        updated.append(session)
+        result = heartbeat(session.session_id)
+        if result:
+            updated.append(result)
     return updated
 
 
 def update_session(session_id: str, **kwargs) -> Session | None:
     """Update arbitrary fields on a session."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    for key, value in kwargs.items():
-        if hasattr(session, key):
-            setattr(session, key, value)
+        for key, value in kwargs.items():
+            if hasattr(session, key):
+                setattr(session, key, value)
 
-    _save_session(session)
-    return session
+        _save_session(session)
+        return session
 
 
 def add_event(session_id: str, message: str) -> Session | None:
     """Append an event to the session event log (append-only)."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    session.events.append({"timestamp": _now_iso(), "message": message})
-    session.last_heartbeat = _now_iso()
-    _save_session(session)
-    return session
+        session.events.append({"timestamp": _now_iso(), "message": message})
+        session.last_heartbeat = _now_iso()
+        _save_session(session)
+        return session
 
 
 def add_commit(session_id: str, sha: str, message: str) -> Session | None:
     """Append a commit to the session. Deduplicates on SHA[:7]."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    short_sha = sha[:7]
-    existing = {(c.get("sha", "")[:7]) for c in session.commits}
-    if short_sha not in existing:
-        session.commits.append({"sha": sha, "message": message})
-    session.last_heartbeat = _now_iso()
-    _save_session(session)
-    return session
+        short_sha = sha[:7]
+        existing = {(c.get("sha", "")[:7]) for c in session.commits}
+        if short_sha not in existing:
+            session.commits.append({"sha": sha, "message": message})
+        session.last_heartbeat = _now_iso()
+        _save_session(session)
+        return session
 
 
 def add_decision(session_id: str, decision: str) -> Session | None:
     """Append a decision to the session. Deduplicates on text."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    if decision not in session.decisions:
-        session.decisions.append(decision)
-    session.last_heartbeat = _now_iso()
-    _save_session(session)
-    return session
+        if decision not in session.decisions:
+            session.decisions.append(decision)
+        session.last_heartbeat = _now_iso()
+        _save_session(session)
+        return session
 
 
 def request_action(session_id: str, reason: str) -> Session | None:
     """Mark a session as awaiting user action."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    session.awaiting_action = reason
-    session.last_heartbeat = _now_iso()
-    _save_session(session)
-    return session
+        session.awaiting_action = reason
+        session.last_heartbeat = _now_iso()
+        _save_session(session)
+        return session
 
 
 def clear_action(session_id: str) -> Session | None:
     """Clear the awaiting_action flag."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    session.awaiting_action = None
-    session.last_heartbeat = _now_iso()
-    _save_session(session)
-    return session
+        session.awaiting_action = None
+        session.last_heartbeat = _now_iso()
+        _save_session(session)
+        return session
+
+
+VALID_TASK_STATUSES = {"pending", "in_progress", "completed", "skipped"}
+
+
+def _generate_task_id() -> str:
+    """Generate a collision-resistant task ID."""
+    return f"t{secrets.token_hex(4)}"
+
+
+def add_task(session_id: str, subject: str) -> Session | None:
+    """Append a task to the session. Deduplicates on subject."""
+    return add_tasks(session_id, [subject])
+
+
+def add_tasks(session_id: str, subjects: list[str]) -> Session | None:
+    """Batch-append tasks to the session. Deduplicates on subject."""
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
+
+        existing_subjects = {t["subject"] for t in session.tasks}
+        now = _now_iso()
+        added = False
+
+        for subject in subjects:
+            if subject in existing_subjects:
+                continue
+            session.tasks.append({
+                "id": _generate_task_id(),
+                "subject": subject,
+                "status": "pending",
+                "added_at": now,
+                "updated_at": now,
+            })
+            existing_subjects.add(subject)
+            added = True
+
+        if added:
+            session.last_heartbeat = now
+            _save_session(session)
+        return session
+
+
+def update_task(
+    session_id: str, task_id: str, status: str, subject: str | None = None
+) -> Session | None:
+    """Update a task's status (and optionally subject). Raises ValueError if task_id not found."""
+    if status not in VALID_TASK_STATUSES:
+        raise ValueError(
+            f"Invalid status '{status}'. Must be one of: {sorted(VALID_TASK_STATUSES)}"
+        )
+
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
+
+        for task in session.tasks:
+            if task["id"] == task_id:
+                task["status"] = status
+                task["updated_at"] = _now_iso()
+                if subject is not None:
+                    existing = {t["subject"] for t in session.tasks if t["id"] != task_id}
+                    if subject in existing:
+                        raise ValueError(f"Task subject '{subject}' already exists in session {session_id}")
+                    task["subject"] = subject
+                session.last_heartbeat = _now_iso()
+                _save_session(session)
+                return session
+
+        raise ValueError(f"Task {task_id} not found in session {session_id}")
 
 
 def complete_session(
@@ -300,23 +403,24 @@ def complete_session(
     decisions: list[str] | None = None,
 ) -> Session | None:
     """Mark session as completed."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    session.status = SessionStatus.COMPLETED
-    session.ended_at = _now_iso()
-    session.outcome = outcome
-    if next_steps is not None:
-        session.next_steps = next_steps[:3]
-    if commits is not None:
-        session.commits = commits
-    if files_changed is not None:
-        session.files_changed = files_changed
-    if decisions is not None:
-        session.decisions = decisions
+        session.status = SessionStatus.COMPLETED
+        session.ended_at = _now_iso()
+        session.outcome = outcome
+        if next_steps is not None:
+            session.next_steps = next_steps[:3]
+        if commits is not None:
+            session.commits = commits
+        if files_changed is not None:
+            session.files_changed = files_changed
+        if decisions is not None:
+            session.decisions = decisions
 
-    _save_session(session)
+        _save_session(session)
     _refresh_project_state(session.project_slug)
     return session
 
@@ -327,17 +431,18 @@ def park_session(
     next_steps: list[str] | None = None,
 ) -> Session | None:
     """Park a session with a reason."""
-    session = get_session(session_id)
-    if not session:
-        return None
+    with _session_lock(session_id):
+        session = get_session(session_id)
+        if not session:
+            return None
 
-    session.status = SessionStatus.PARKED
-    session.ended_at = _now_iso()
-    session.parked_reason = reason
-    if next_steps is not None:
-        session.next_steps = next_steps[:3]
+        session.status = SessionStatus.PARKED
+        session.ended_at = _now_iso()
+        session.parked_reason = reason
+        if next_steps is not None:
+            session.next_steps = next_steps[:3]
 
-    _save_session(session)
+        _save_session(session)
     _refresh_project_state(session.project_slug)
     return session
 
@@ -345,25 +450,26 @@ def park_session(
 def resume_session(session_id: str, new_intent: str | None = None) -> Session:
     """Resume a parked session — creates a new active session
     with the old session's context, and marks the old one as completed."""
-    old = get_session(session_id)
-    if not old:
-        raise ValueError(f"Session {session_id} not found")
+    with _session_lock(session_id):
+        old = get_session(session_id)
+        if not old:
+            raise ValueError(f"Session {session_id} not found")
 
-    intent = new_intent or old.intent
-    new_session = create_session(
-        project_slug=old.project_slug,
-        intent=intent,
-        roadmap_ref=old.roadmap_ref,
-        git_branch=old.git_branch,
-    )
-    new_session.open_questions = old.open_questions
-    _save_session(new_session)
+        intent = new_intent or old.intent
+        new_session = create_session(
+            project_slug=old.project_slug,
+            intent=intent,
+            roadmap_ref=old.roadmap_ref,
+            git_branch=old.git_branch,
+        )
+        new_session.open_questions = old.open_questions
+        _save_session(new_session)
 
-    # Mark old session as completed (resumed into new)
-    old.status = SessionStatus.COMPLETED
-    old.outcome = f"Resumed as {new_session.session_id}"
-    old.ended_at = _now_iso()
-    _save_session(old)
+        # Mark old session as completed (resumed into new)
+        old.status = SessionStatus.COMPLETED
+        old.outcome = f"Resumed as {new_session.session_id}"
+        old.ended_at = _now_iso()
+        _save_session(old)
 
     _refresh_project_state(old.project_slug)
     return new_session
@@ -421,6 +527,45 @@ def get_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
                 stale.append(session)
 
     return stale
+
+
+def cleanup_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
+    """Find and auto-close all stale sessions."""
+    if threshold_hours is None:
+        config = load_config()
+        threshold_hours = config.settings.stale_threshold_hours
+
+    stale = get_stale_sessions(threshold_hours)
+    cleaned = []
+    affected_projects: set[str] = set()
+    for session in stale:
+        try:
+            with _session_lock(session.session_id):
+                # Revalidate: re-read session to check it's still stale
+                fresh = get_session(session.session_id)
+                if not fresh or fresh.status != SessionStatus.ACTIVE:
+                    continue
+                hb = datetime.fromisoformat(fresh.last_heartbeat)
+                current_now = datetime.now(timezone.utc)
+                if (current_now - hb).total_seconds() / 3600 <= threshold_hours:
+                    continue
+
+                ended = _now_iso()
+                fresh.status = SessionStatus.COMPLETED
+                fresh.ended_at = ended
+                fresh.last_heartbeat = ended
+                fresh.outcome = "Automatisch afgesloten (stale — geen heartbeat)"
+                _save_session(fresh)
+            affected_projects.add(fresh.project_slug)
+            cleaned.append(fresh)
+        except Exception as exc:
+            logger.warning(
+                "Failed to close stale session %s: %s", session.session_id, exc
+            )
+            continue
+    for slug in affected_projects:
+        _refresh_project_state(slug)
+    return cleaned
 
 
 # ---------------------------------------------------------------------------
@@ -559,6 +704,17 @@ def get_all_project_states() -> list[ProjectState]:
     return states
 
 
+def _task_summary(tasks: list[dict]) -> dict:
+    """Build task status summary for API output."""
+    return {
+        "total": len(tasks),
+        "completed": sum(1 for t in tasks if t.get("status") == "completed"),
+        "in_progress": sum(1 for t in tasks if t.get("status") == "in_progress"),
+        "pending": sum(1 for t in tasks if t.get("status") == "pending"),
+        "skipped": sum(1 for t in tasks if t.get("status") == "skipped"),
+    }
+
+
 def build_overview() -> dict:
     """Build complete dashboard overview — single source of truth for CLI and web."""
     config = load_config()
@@ -595,6 +751,8 @@ def build_overview() -> dict:
                         "commits": s.commits,
                         "next_steps": s.next_steps,
                         "event_count": len(s.events),
+                        "tasks": s.tasks,
+                        "task_summary": _task_summary(s.tasks),
                     }
                     for s in active
                 ],
@@ -616,6 +774,8 @@ def build_overview() -> dict:
                         "event_count": len(s.events),
                         "started_at": s.started_at,
                         "ended_at": s.ended_at,
+                        "tasks": s.tasks,
+                        "task_summary": _task_summary(s.tasks),
                     }
                     for s in parked
                 ],
@@ -635,6 +795,8 @@ def build_overview() -> dict:
                         "commits": s.commits,
                         "next_steps": s.next_steps,
                         "event_count": len(s.events),
+                        "tasks": s.tasks,
+                        "task_summary": _task_summary(s.tasks),
                     }
                     for s in completed
                 ],

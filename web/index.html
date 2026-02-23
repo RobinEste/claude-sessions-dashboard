@@ -457,6 +457,55 @@
     border-color: var(--accent-blue);
   }
 
+  /* Task tracking */
+  .tag-tasks {
+    background: rgba(152, 110, 226, 0.15);
+    color: var(--accent-purple);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .task-progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+
+  .task-progress-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  .task-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 13px;
+  }
+
+  .task-icon {
+    flex-shrink: 0;
+    width: 14px;
+    text-align: center;
+  }
+
+  .task-completed .task-icon { color: var(--accent-green); }
+  .task-in-progress .task-icon { color: var(--accent-blue); }
+  .task-pending .task-icon { color: var(--text-muted); }
+  .task-skipped .task-icon { color: var(--text-muted); }
+  .task-skipped .task-subject {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+
+  .task-subject {
+    color: var(--text);
+  }
+
   footer {
     margin-top: 32px;
     padding-top: 16px;
@@ -601,8 +650,11 @@ function renderCardRow(s) {
   html += '<span class="dot ' + dotClass + '"></span>';
   html += '<span class="card-intent">' + esc(s.intent) + '</span>';
 
-  // Activity text: current_activity, or outcome for completed sessions
+  // Activity text: current_activity, last event as fallback, or outcome for completed
   let activity = s.current_activity || '';
+  if (!activity && s.type === 'active' && s.events && s.events.length > 0) {
+    activity = s.events[s.events.length - 1].message || '';
+  }
   if (!activity && s.type === 'completed' && s.outcome) {
     activity = s.outcome.length > 60 ? s.outcome.substring(0, 57) + '...' : s.outcome;
   }
@@ -625,6 +677,10 @@ function renderCardRow(s) {
   const commitCount = (s.commits || []).length;
   if (commitCount > 0) {
     html += '<span class="tag tag-events">' + commitCount + ' commits</span>';
+  }
+  if (s.tasks && s.tasks.length > 0) {
+    const done = s.tasks.filter(t => t.status === 'completed').length;
+    html += '<span class="tag tag-tasks">' + done + '/' + s.tasks.length + ' tasks</span>';
   }
   html += '<span class="tag tag-project">' + esc(s.project_name) + '</span>';
   html += '</span>';
@@ -681,6 +737,29 @@ function renderDetail(s) {
     html += '</ul>';
     if (totalEventCount > events.length) {
       html += '<button class="show-all-events" onclick="loadAllEvents(\'' + esc(s.session_id) + '\')">Show all events (' + totalEventCount + ')</button>';
+    }
+    html += '</div>';
+  }
+
+  // Tasks
+  const tasks = s.tasks || [];
+  if (tasks.length > 0) {
+    const ts = s.task_summary || {};
+    const completedTasks = ts.completed || 0;
+    const pct = Math.round((completedTasks / tasks.length) * 100);
+    html += '<div class="detail-section">';
+    html += '<div class="detail-label">Tasks (' + completedTasks + '/' + tasks.length + ')</div>';
+    html += '<div class="task-progress-bar"><div class="task-progress-fill" style="width:' + pct + '%"></div></div>';
+    for (const t of tasks) {
+      let icon = '\u25CB'; // pending
+      let cls = 'task-pending';
+      if (t.status === 'completed') { icon = '\u2713'; cls = 'task-completed'; }
+      else if (t.status === 'in_progress') { icon = '\u25B8'; cls = 'task-in-progress'; }
+      else if (t.status === 'skipped') { icon = '\u2013'; cls = 'task-skipped'; }
+      html += '<div class="task-item ' + cls + '">';
+      html += '<span class="task-icon">' + icon + '</span>';
+      html += '<span class="task-subject">' + esc(t.subject) + '</span>';
+      html += '</div>';
     }
     html += '</div>';
   }

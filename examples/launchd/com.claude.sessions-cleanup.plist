@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.claude.sessions-cleanup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- IMPORTANT: use your actual python3 path (run `which python3` to find it) -->
+        <string>/usr/local/bin/python3</string>
+        <string>/Users/YOUR_USERNAME/.claude/dashboard/manage.py</string>
+        <string>cleanup-stale</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/YOUR_USERNAME/.claude/dashboard</string>
+
+    <!-- Run every hour (3600 seconds) -->
+    <key>StartInterval</key>
+    <integer>3600</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USERNAME/.claude/dashboard/logs/cleanup.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USERNAME/.claude/dashboard/logs/cleanup.err</string>
+</dict>
+</plist>

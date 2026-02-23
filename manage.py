@@ -97,6 +97,21 @@ def main() -> None:
     p = sub.add_parser("clear-action", help="Clear awaiting action flag")
     p.add_argument("session_id")
 
+    # --- Task commands ---
+    p = sub.add_parser("add-task", help="Add a task to a session")
+    p.add_argument("session_id")
+    p.add_argument("--subject", required=True, help="Task description")
+
+    p = sub.add_parser("add-tasks", help="Add multiple tasks to a session")
+    p.add_argument("session_id")
+    p.add_argument("--subjects", nargs="+", required=True, help="Task descriptions")
+
+    p = sub.add_parser("update-task", help="Update a task status")
+    p.add_argument("session_id")
+    p.add_argument("--task-id", required=True, help="Task ID (e.g. t1)")
+    p.add_argument("--status", required=True, choices=["pending", "in_progress", "completed", "skipped"])
+    p.add_argument("--subject", help="Rename the task")
+
     # --- Multi-project setup ---
     p = sub.add_parser("setup", help="Install dashboard skills in a project")
     p.add_argument("--project-path", required=True, help="Path to target project")
@@ -110,6 +125,7 @@ def main() -> None:
     p.add_argument("--project", help="Filter by project slug")
 
     sub.add_parser("stale-sessions", help="List stale sessions")
+    sub.add_parser("cleanup-stale", help="Auto-close stale sessions")
 
     p = sub.add_parser("list-sessions", help="List all sessions")
     p.add_argument("--project", help="Filter by project slug")
@@ -203,6 +219,23 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         session = store.clear_action(args.session_id)
         return asdict(session) if session else {"error": "Session not found"}
 
+    if cmd == "add-task":
+        session = store.add_task(args.session_id, args.subject)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "add-tasks":
+        session = store.add_tasks(args.session_id, args.subjects)
+        return asdict(session) if session else {"error": "Session not found"}
+
+    if cmd == "update-task":
+        try:
+            session = store.update_task(
+                args.session_id, args.task_id, args.status, args.subject
+            )
+            return asdict(session) if session else {"error": "Session not found"}
+        except ValueError as e:
+            return {"error": str(e)}
+
     if cmd == "setup":
         return _setup_project(args.project_path, args.project_name)
 
@@ -251,6 +284,13 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
     if cmd == "stale-sessions":
         sessions = store.get_stale_sessions()
         return [asdict(s) for s in sessions]
+
+    if cmd == "cleanup-stale":
+        cleaned = store.cleanup_stale_sessions()
+        return {
+            "cleaned": len(cleaned),
+            "session_ids": [s.session_id for s in cleaned],
+        }
 
     if cmd == "list-sessions":
         status = SessionStatus(args.status) if args.status else None
