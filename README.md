@@ -7,8 +7,11 @@ A lightweight, file-based session tracker and web dashboard for [Claude Code](ht
 When you use Claude Code across multiple projects and terminal windows, it's easy to lose track of what you were doing. This dashboard gives you:
 
 - **Session tracking** — each Claude Code conversation registers as a session with an intent, events, and outcome
+- **Task tracking** — sessions can have tasks with status (pending/in_progress/completed/skipped), shown as a progress bar in the UI
 - **Park & resume** — pause a session with a reason and pick it up later
 - **Stale detection** — sessions without a heartbeat for 24h are flagged
+- **Auto-cleanup** — stale sessions are automatically closed via a CLI command or launchd periodic job
+- **Concurrency safe** — all session mutations are protected by file-level locking (`fcntl.flock`)
 - **Project overview** — see all your projects, their current phase, and roadmap progress
 - **Web dashboard** — dark-themed, auto-refreshing UI at `localhost:9000`
 - **Zero dependencies** — the core runs on Python stdlib only (web UI needs `fastapi` + `uvicorn`)
@@ -105,6 +108,27 @@ The dashboard will now:
 
 To stop: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.claude.sessions-dashboard.plist`
 
+### 5. Auto-cleanup stale sessions (macOS, optional)
+
+Automatically close sessions that have been inactive for 24+ hours:
+
+```bash
+# Copy the cleanup plist
+cp examples/launchd/com.claude.sessions-cleanup.plist ~/Library/LaunchAgents/
+
+# Edit: replace YOUR_USERNAME and python3 path
+nano ~/Library/LaunchAgents/com.claude.sessions-cleanup.plist
+
+# Load
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.claude.sessions-cleanup.plist
+```
+
+This runs `manage.py cleanup-stale` every hour. You can also run it manually:
+
+```bash
+python3 ~/.claude/dashboard/manage.py cleanup-stale
+```
+
 ## Usage
 
 ### CLI
@@ -141,10 +165,21 @@ python3 ~/.claude/dashboard/manage.py complete-session <session_id> \
   --outcome "Login bug fixed, 3 tests added" \
   --next-steps "Deploy to staging" "Monitor error rates"
 
+# Track tasks within a session
+python3 ~/.claude/dashboard/manage.py add-tasks <session_id> \
+  --subjects "Fix login bug" "Add tests" "Update docs"
+
+# Update a task's status
+python3 ~/.claude/dashboard/manage.py update-task <session_id> <task_id> \
+  --status completed
+
 # List sessions
 python3 ~/.claude/dashboard/manage.py active-sessions --project my-project
 python3 ~/.claude/dashboard/manage.py parked-sessions
 python3 ~/.claude/dashboard/manage.py stale-sessions
+
+# Clean up stale sessions (inactive for 24+ hours)
+python3 ~/.claude/dashboard/manage.py cleanup-stale
 
 # Track roadmap progress
 python3 ~/.claude/dashboard/manage.py update-project-state my-project \
@@ -188,7 +223,7 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 ├── config.json        # Project registry + settings (auto-created)
 ├── lib/
 │   ├── models.py      # Dataclasses (Session, ProjectState, etc.)
-│   └── store.py       # JSON file CRUD with atomic writes
+│   └── store.py       # JSON file CRUD with atomic writes + file locking
 ├── web/
 │   ├── app.py         # FastAPI server (3 routes)
 │   └── index.html     # Dashboard frontend (single HTML file)
@@ -199,7 +234,8 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 ### Design decisions
 
 - **File-based storage** — no database needed; each session is a JSON file. Atomic writes (`tempfile` + `os.replace`) prevent corruption from concurrent access.
-- **Zero core dependencies** — the CLI and data layer use only Python stdlib (`json`, `dataclasses`, `pathlib`). Only the web dashboard needs `fastapi`/`uvicorn`.
+- **File-level locking** — all session mutations are protected by exclusive locks (`fcntl.flock`) on dedicated `.lock` files. This prevents race conditions when multiple Claude Code windows modify sessions concurrently.
+- **Zero core dependencies** — the CLI and data layer use only Python stdlib (`json`, `dataclasses`, `pathlib`, `fcntl`). Only the web dashboard needs `fastapi`/`uvicorn`.
 - **Throttled heartbeat** — the shell hook uses file modification timestamps to skip unnecessary Python invocations (< 5ms when throttled).
 - **Multi-session safe** — multiple Claude Code windows can run simultaneously. Each manages its own session; skills never touch sessions from other conversations.
 
@@ -208,6 +244,7 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 Sessions track:
 - **Intent** — what you planned to do
 - **Current activity** — what you're doing right now
+- **Tasks** — subtasks with status (pending/in_progress/completed/skipped) and progress bar
 - **Events** — timestamped log of significant actions
 - **Commits** — git commits made during the session
 - **Files changed** — which files were modified
