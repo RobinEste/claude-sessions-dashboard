@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-sessions-dashboard"
+version = "1.0.0"
+description = "Lightweight, file-based session tracker and web dashboard for Claude Code"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Robin", email = "robin@n-ventures.nl" },
+]
+keywords = ["claude", "sessions", "dashboard", "developer-tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Quality Assurance",
+    "Typing :: Typed",
+]
+
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.109",
+    "uvicorn>=0.27",
+]
+
+[project.scripts]
+claude-dashboard = "manage:main"
+
+[project.urls]
+Homepage = "https://github.com/RobinEste/claude-sessions-dashboard"
+Repository = "https://github.com/RobinEste/claude-sessions-dashboard"
+Issues = "https://github.com/RobinEste/claude-sessions-dashboard/issues"
+
+[tool.setuptools]
+py-modules = ["manage"]
+
+[tool.setuptools.packages.find]
+include = ["lib*", "web*"]
+
+[tool.setuptools.package-data]
+web = ["*.html"]

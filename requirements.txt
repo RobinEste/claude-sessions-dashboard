@@ -1,0 +1,5 @@
+# Web dashboard dependencies (core has no external dependencies)
+# Usage: pip install -r requirements.txt
+# Alternative: pip install ".[web]"
+fastapi>=0.109
+uvicorn>=0.27
