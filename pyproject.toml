@@ -48,3 +48,6 @@ include = ["lib*", "web*"]
 
 [tool.setuptools.package-data]
 web = ["*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
