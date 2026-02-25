@@ -6,10 +6,21 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 ## [Unreleased]
 
 ### Toegevoegd
-- GitHub Actions CI met pytest + ruff (B1)
-- Test suite: 126 tests over models, store, CLI en web (A3–A6)
+- Schema versioning met on-read migratie (`schema_version: 2`) (C1)
+- Orphaned lock file cleanup in `cleanup_stale_sessions()` + CLI commando (B3)
+- `CLAUDE.md` met projectconventies voor AI-assisted development (B4)
+- Ruff linter configuratie in `pyproject.toml` (B5)
+- GitHub Actions CI met pytest + ruff, SHA-pinned actions (B1)
+- `TaskStatus` StrEnum voor type-safe task statussen (CON-001)
+- Session ID validatie tegen path traversal (SEC-001)
+- Test suite: 133 tests over models, store, CLI en web (A3–A6)
 - `pyproject.toml` met PEP 621 metadata en `[web]`/`[test]` extras (A1)
 - `requirements.txt` voor snelle installatie (A2)
+
+### Verbeterd
+- `resume_session` lock scope refactored — geen nested locks meer (ASD-001)
+- `_session_to_overview_dict` helper vervangt 3 dubbele dict comprehensions (DUP-001)
+- None-check na tweede lock-acquisitie in `resume_session` (PYT-001)
 
 ### Gefixt
 - Defensieve key access voor legacy tasks zonder `subject` veld (LOG-001)

@@ -84,6 +84,46 @@ class TestRegisterProject:
 
 
 # ---------------------------------------------------------------------------
+# Schema versioning
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaVersioning:
+    def test_new_session_has_schema_version(self):
+        s = store.create_session(project_slug="proj", intent="Test")
+        path = store.SESSIONS_DIR / f"{s.session_id}.json"
+        with open(path) as f:
+            data = json.load(f)
+        assert data["schema_version"] == store.SCHEMA_VERSION
+
+    def test_v1_session_migrated_on_read(self):
+        """A v1 session (no schema_version) is migrated transparently."""
+        sid = "sess_20260101T0000_abcd"
+        path = store.SESSIONS_DIR / f"{sid}.json"
+        v1_data = {
+            "session_id": sid,
+            "project_slug": "proj",
+            "status": "active",
+            "intent": "Legacy session",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "last_heartbeat": "2026-01-01T00:00:00+00:00",
+        }
+        with open(path, "w") as f:
+            json.dump(v1_data, f)
+
+        s = store.get_session(sid)
+        assert s is not None
+        assert s.intent == "Legacy session"
+        assert s.tasks == []  # v1 → v2 migration adds tasks
+
+    def test_v2_session_not_modified(self):
+        """A v2 session passes through migration unchanged."""
+        s = store.create_session(project_slug="proj", intent="Modern")
+        loaded = store.get_session(s.session_id)
+        assert loaded.intent == "Modern"
+
+
+# ---------------------------------------------------------------------------
 # Session CRUD
 # ---------------------------------------------------------------------------
 

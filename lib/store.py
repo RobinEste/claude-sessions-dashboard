@@ -193,6 +193,7 @@ def get_session(session_id: str) -> Session | None:
     with open(path) as f:
         data = json.load(f)
 
+    data = _migrate_session_data(data)
     return _session_from_dict(data)
 
 
@@ -221,10 +222,25 @@ def _session_from_dict(data: dict) -> Session:
     )
 
 
+SCHEMA_VERSION = 2
+
+
+def _migrate_session_data(data: dict) -> dict:
+    """Migrate session data from older schema versions to current."""
+    version = data.get("schema_version", 1)
+    if version < 2:
+        # v1 → v2: add schema_version and tasks field
+        data.setdefault("tasks", [])
+        data["schema_version"] = SCHEMA_VERSION
+    return data
+
+
 def _save_session(session: Session) -> None:
     _ensure_dirs()
     path = SESSIONS_DIR / f"{session.session_id}.json"
-    _atomic_write(path, asdict(session))
+    data = asdict(session)
+    data["schema_version"] = SCHEMA_VERSION
+    _atomic_write(path, data)
 
 
 def heartbeat(session_id: str) -> Session | None:
