@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 
 
@@ -90,7 +90,7 @@ class DashboardConfig:
 
 def generate_session_id() -> str:
     """Generate readable + unique session ID: sess_20260210T1430_a1b2."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     timestamp = now.strftime("%Y%m%dT%H%M")
     suffix = secrets.token_hex(2)
     return f"sess_{timestamp}_{suffix}"

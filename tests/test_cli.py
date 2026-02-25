@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+
 import pytest
 
 from lib import store
@@ -18,7 +19,6 @@ from lib import store
 # Import _dispatch from manage.py
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from manage import _dispatch
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

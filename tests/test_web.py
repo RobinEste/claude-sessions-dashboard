@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 from lib import store
 from web.app import app
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

@@ -109,7 +109,10 @@ def main() -> None:
     p = sub.add_parser("update-task", help="Update a task status")
     p.add_argument("session_id")
     p.add_argument("--task-id", required=True, help="Task ID (e.g. t1)")
-    p.add_argument("--status", required=True, choices=["pending", "in_progress", "completed", "skipped"])
+    p.add_argument(
+        "--status", required=True,
+        choices=["pending", "in_progress", "completed", "skipped"],
+    )
     p.add_argument("--subject", help="Rename the task")
 
     # --- Multi-project setup ---

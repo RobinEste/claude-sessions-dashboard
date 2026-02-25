@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, JSONResponse
 # Ensure lib is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lib import store  # noqa: E402
+from lib import store
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 

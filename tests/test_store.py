@@ -9,12 +9,12 @@ from __future__ import annotations
 import json
 import threading
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
+
 import pytest
 
 from lib import store
 from lib.models import SessionStatus
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -399,7 +399,7 @@ class TestStaleDetection:
     def _make_stale_session(self, hours_ago: int = 48) -> str:
         """Create a session with an old heartbeat."""
         s = store.create_session(project_slug="test", intent="Stale session")
-        old_time = (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+        old_time = (datetime.now(UTC) - timedelta(hours=hours_ago)).isoformat()
         # Directly update the file to set old heartbeat
         path = store.SESSIONS_DIR / f"{s.session_id}.json"
         with open(path) as f:

@@ -14,7 +14,7 @@ import secrets
 import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .models import (
@@ -45,7 +45,7 @@ def _ensure_dirs() -> None:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _atomic_write(path: Path, data: dict) -> None:
@@ -381,9 +381,13 @@ def update_task(
         for task in session.tasks:
             if task["id"] == task_id:
                 if subject is not None:
-                    existing = {t["subject"] for t in session.tasks if t["id"] != task_id and "subject" in t}
+                    existing = {
+                        t["subject"] for t in session.tasks
+                        if t["id"] != task_id and "subject" in t
+                    }
                     if subject in existing:
-                        raise ValueError(f"Task subject '{subject}' already exists in session {session_id}")
+                        msg = f"Task subject '{subject}' already exists in session {session_id}"
+                        raise ValueError(msg)
                 task["status"] = status
                 task["updated_at"] = _now_iso()
                 if subject is not None:
@@ -518,7 +522,7 @@ def get_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
         config = load_config()
         threshold_hours = config.settings.stale_threshold_hours
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     stale = []
     for session in get_active_sessions():
         if session.last_heartbeat:
@@ -547,7 +551,7 @@ def cleanup_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
                 if not fresh or fresh.status != SessionStatus.ACTIVE:
                     continue
                 hb = datetime.fromisoformat(fresh.last_heartbeat)
-                current_now = datetime.now(timezone.utc)
+                current_now = datetime.now(UTC)
                 if (current_now - hb).total_seconds() / 3600 <= threshold_hours:
                     continue
 
