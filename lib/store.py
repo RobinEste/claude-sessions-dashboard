@@ -25,6 +25,7 @@ from .models import (
     RoadmapSummary,
     Session,
     SessionStatus,
+    TaskStatus,
     generate_session_id,
 )
 
@@ -68,10 +69,19 @@ def _slugify(name: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+_SESSION_ID_RE = __import__("re").compile(r"^sess_\d{8}T\d{4}_[0-9a-f]{4}$")
+
+
+def _validate_session_id(session_id: str) -> None:
+    """Reject session IDs that could escape the sessions directory."""
+    if not _SESSION_ID_RE.match(session_id):
+        raise ValueError(f"Invalid session ID format: {session_id}")
+
 
 @contextmanager
 def _session_lock(session_id: str):
     """Acquire an exclusive file lock for a session's read-modify-write cycle."""
+    _validate_session_id(session_id)
     _ensure_dirs()
     lock_path = SESSIONS_DIR / f"{session_id}.lock"
     lock_fd = open(lock_path, "w")
@@ -175,6 +185,7 @@ def create_session(
 
 
 def get_session(session_id: str) -> Session | None:
+    _validate_session_id(session_id)
     path = SESSIONS_DIR / f"{session_id}.json"
     if not path.exists():
         return None
@@ -321,7 +332,7 @@ def clear_action(session_id: str) -> Session | None:
         return session
 
 
-VALID_TASK_STATUSES = {"pending", "in_progress", "completed", "skipped"}
+VALID_TASK_STATUSES = set(TaskStatus)
 
 
 def _generate_task_id() -> str:
@@ -351,7 +362,7 @@ def add_tasks(session_id: str, subjects: list[str]) -> Session | None:
             session.tasks.append({
                 "id": _generate_task_id(),
                 "subject": subject,
-                "status": "pending",
+                "status": TaskStatus.PENDING,
                 "added_at": now,
                 "updated_at": now,
             })
@@ -460,20 +471,33 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         if not old:
             raise ValueError(f"Session {session_id} not found")
 
+        # Capture context before releasing lock
         intent = new_intent or old.intent
-        new_session = create_session(
-            project_slug=old.project_slug,
-            intent=intent,
-            roadmap_ref=old.roadmap_ref,
-            git_branch=old.git_branch,
-        )
-        new_session.open_questions = old.open_questions
-        _save_session(new_session)
+        project_slug = old.project_slug
+        roadmap_ref = old.roadmap_ref
+        git_branch = old.git_branch
+        open_questions = old.open_questions
 
         # Mark old session as completed (resumed into new)
         old.status = SessionStatus.COMPLETED
-        old.outcome = f"Resumed as {new_session.session_id}"
         old.ended_at = _now_iso()
+        _save_session(old)
+
+    # Create new session outside lock to avoid nested locking
+    new_session = create_session(
+        project_slug=project_slug,
+        intent=intent,
+        roadmap_ref=roadmap_ref,
+        git_branch=git_branch,
+    )
+    new_session.open_questions = open_questions
+    new_session.outcome = None  # clear any inherited state
+    _save_session(new_session)
+
+    # Update old session with reference to new one
+    with _session_lock(session_id):
+        old = get_session(session_id)
+        old.outcome = f"Resumed as {new_session.session_id}"
         _save_session(old)
 
     _refresh_project_state(old.project_slug)
@@ -738,6 +762,28 @@ def _task_summary(tasks: list[dict]) -> dict:
     }
 
 
+def _session_to_overview_dict(session: Session, **extra) -> dict:
+    """Convert a session to a dict for the overview API. Extra fields override defaults."""
+    d = {
+        "session_id": session.session_id,
+        "intent": session.intent,
+        "started_at": session.started_at,
+        "roadmap_ref": session.roadmap_ref,
+        "events": session.events[-5:],
+        "git_branch": session.git_branch,
+        "files_changed": session.files_changed,
+        "decisions": session.decisions,
+        "open_questions": session.open_questions,
+        "commits": session.commits,
+        "next_steps": session.next_steps,
+        "event_count": len(session.events),
+        "tasks": session.tasks,
+        "task_summary": _task_summary(session.tasks),
+    }
+    d.update(extra)
+    return d
+
+
 def build_overview() -> dict:
     """Build complete dashboard overview — single source of truth for CLI and web."""
     config = load_config()
@@ -757,70 +803,32 @@ def build_overview() -> dict:
                 "path": reg.path,
                 "current_phase": state.current_phase if state else "",
                 "active_sessions": [
-                    {
-                        "session_id": s.session_id,
-                        "intent": s.intent,
-                        "started_at": s.started_at,
-                        "last_heartbeat": s.last_heartbeat,
-                        "is_stale": s.session_id in stale_ids,
-                        "current_activity": s.current_activity,
-                        "awaiting_action": s.awaiting_action,
-                        "roadmap_ref": s.roadmap_ref,
-                        "events": s.events[-5:],
-                        "git_branch": s.git_branch,
-                        "files_changed": s.files_changed,
-                        "decisions": s.decisions,
-                        "open_questions": s.open_questions,
-                        "commits": s.commits,
-                        "next_steps": s.next_steps,
-                        "event_count": len(s.events),
-                        "tasks": s.tasks,
-                        "task_summary": _task_summary(s.tasks),
-                    }
+                    _session_to_overview_dict(
+                        s,
+                        last_heartbeat=s.last_heartbeat,
+                        is_stale=s.session_id in stale_ids,
+                        current_activity=s.current_activity,
+                        awaiting_action=s.awaiting_action,
+                    )
                     for s in active
                 ],
                 "parked_sessions": [
-                    {
-                        "session_id": s.session_id,
-                        "intent": s.intent,
-                        "parked_reason": s.parked_reason,
-                        "current_activity": s.current_activity,
-                        "awaiting_action": s.awaiting_action,
-                        "roadmap_ref": s.roadmap_ref,
-                        "events": s.events[-5:],
-                        "git_branch": s.git_branch,
-                        "files_changed": s.files_changed,
-                        "decisions": s.decisions,
-                        "open_questions": s.open_questions,
-                        "commits": s.commits,
-                        "next_steps": s.next_steps,
-                        "event_count": len(s.events),
-                        "started_at": s.started_at,
-                        "ended_at": s.ended_at,
-                        "tasks": s.tasks,
-                        "task_summary": _task_summary(s.tasks),
-                    }
+                    _session_to_overview_dict(
+                        s,
+                        parked_reason=s.parked_reason,
+                        current_activity=s.current_activity,
+                        awaiting_action=s.awaiting_action,
+                        ended_at=s.ended_at,
+                    )
                     for s in parked
                 ],
                 "completed_sessions": [
-                    {
-                        "session_id": s.session_id,
-                        "intent": s.intent,
-                        "outcome": s.outcome,
-                        "started_at": s.started_at,
-                        "ended_at": s.ended_at,
-                        "last_heartbeat": s.last_heartbeat,
-                        "roadmap_ref": s.roadmap_ref,
-                        "events": s.events[-5:],
-                        "files_changed": s.files_changed,
-                        "decisions": s.decisions,
-                        "open_questions": s.open_questions,
-                        "commits": s.commits,
-                        "next_steps": s.next_steps,
-                        "event_count": len(s.events),
-                        "tasks": s.tasks,
-                        "task_summary": _task_summary(s.tasks),
-                    }
+                    _session_to_overview_dict(
+                        s,
+                        outcome=s.outcome,
+                        ended_at=s.ended_at,
+                        last_heartbeat=s.last_heartbeat,
+                    )
                     for s in completed
                 ],
                 "roadmap_summary": {

@@ -110,7 +110,7 @@ class TestSessionCRUD:
         assert s.intent == "Test session"
 
     def test_get_session_not_found(self):
-        assert store.get_session("sess_nonexistent_0000") is None
+        assert store.get_session("sess_20000101T0000_0000") is None
 
     def test_update_session(self, session_id):
         s = store.update_session(session_id, current_activity="Writing tests")
@@ -121,7 +121,7 @@ class TestSessionCRUD:
         assert reloaded.current_activity == "Writing tests"
 
     def test_update_session_not_found(self):
-        assert store.update_session("sess_nonexistent_0000", intent="x") is None
+        assert store.update_session("sess_20000101T0000_0000", intent="x") is None
 
     def test_update_session_ignores_unknown_fields(self, session_id):
         s = store.update_session(session_id, nonexistent_field="value")
@@ -171,7 +171,7 @@ class TestSessionCRUD:
 
     def test_resume_session_not_found(self):
         with pytest.raises(ValueError, match="not found"):
-            store.resume_session("sess_nonexistent_0000")
+            store.resume_session("sess_20000101T0000_0000")
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ class TestAppendOperations:
         assert len(s.events) == 2
 
     def test_add_event_not_found(self):
-        assert store.add_event("sess_nonexistent_0000", "msg") is None
+        assert store.add_event("sess_20000101T0000_0000", "msg") is None
 
     def test_add_commit(self, session_id):
         s = store.add_commit(session_id, "abc1234567890", "Initial commit")
@@ -251,7 +251,7 @@ class TestTaskOperations:
         assert len(s.tasks) == 3
 
     def test_add_task_not_found(self):
-        assert store.add_task("sess_nonexistent_0000", "task") is None
+        assert store.add_task("sess_20000101T0000_0000", "task") is None
 
     def test_update_task_status(self, session_id):
         s = store.add_task(session_id, "My task")
@@ -291,7 +291,7 @@ class TestTaskOperations:
             store.update_task(session_id, task_b_id, "pending", subject="Task A")
 
     def test_update_task_not_found_session(self):
-        assert store.update_task("sess_nonexistent_0000", "t1", "completed") is None
+        assert store.update_task("sess_20000101T0000_0000", "t1", "completed") is None
 
     def test_add_tasks_with_legacy_tasks_without_subject(self, session_id):
         """LOG-001 regression: tasks without 'subject' key should not crash."""

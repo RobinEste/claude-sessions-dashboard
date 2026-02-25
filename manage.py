@@ -186,7 +186,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         return asdict(session)
 
     if cmd == "get-session":
-        session = store.get_session(args.session_id)
+        try:
+            session = store.get_session(args.session_id)
+        except ValueError:
+            return {"error": "Invalid session ID format"}
         return asdict(session) if session else {"error": "Session not found"}
 
     if cmd == "update-session":

@@ -92,7 +92,7 @@ class TestSessionCommands:
         assert result["session_id"] == session_id
 
     def test_get_session_not_found(self):
-        result = _dispatch(ns(command="get-session", session_id="sess_nonexistent_0000"))
+        result = _dispatch(ns(command="get-session", session_id="sess_20000101T0000_0000"))
         assert "error" in result
 
     def test_update_session(self, session_id):

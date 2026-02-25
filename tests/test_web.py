@@ -98,7 +98,7 @@ class TestApiSessionDetail:
         assert data["intent"] == "Detail test"
 
     def test_session_detail_not_found(self, client):
-        resp = client.get("/api/session/sess_nonexistent_0000")
+        resp = client.get("/api/session/sess_20000101T0000_0000")
         assert resp.status_code == 404
         assert "error" in resp.json()
 

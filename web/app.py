@@ -36,7 +36,10 @@ def api_overview():
 
 @app.get("/api/session/{session_id}")
 def api_session_detail(session_id: str):
-    session = store.get_session(session_id)
+    try:
+        session = store.get_session(session_id)
+    except ValueError:
+        return JSONResponse({"error": "Invalid session ID"}, status_code=400)
     if not session:
         return JSONResponse({"error": "Session not found"}, status_code=404)
     return JSONResponse(asdict(session))

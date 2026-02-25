@@ -14,6 +14,13 @@ class SessionStatus(StrEnum):
     PARKED = "parked"
 
 
+class TaskStatus(StrEnum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+
+
 @dataclass
 class ProjectRegistration:
     """Entry in config.json — registers a project with the dashboard."""
