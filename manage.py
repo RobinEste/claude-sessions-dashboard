@@ -131,10 +131,17 @@ def main() -> None:
     sub.add_parser("cleanup-stale", help="Auto-close stale sessions")
     sub.add_parser("cleanup-locks", help="Remove orphaned .lock files")
 
+    p = sub.add_parser("archive", help="Archive old completed sessions")
+    p.add_argument("--days", type=int, help="Archive sessions older than N days (default: config)")
+    p.add_argument(
+        "--session-id", help="Archive a specific session by ID",
+    )
+
     p = sub.add_parser("list-sessions", help="List all sessions")
     p.add_argument("--project", help="Filter by project slug")
     p.add_argument("--status", choices=["active", "completed", "parked"])
     p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--include-archived", action="store_true", help="Include archived sessions")
 
     # --- Project state ---
     p = sub.add_parser("project-state", help="Get project state")
@@ -303,10 +310,21 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         removed = store.cleanup_orphaned_locks()
         return {"removed": len(removed), "files": removed}
 
+    if cmd == "archive":
+        if args.session_id:
+            success = store.archive_session(args.session_id)
+            if success:
+                return {"archived": args.session_id}
+            return {"error": "Session not found or not completed"}
+        archived = store.archive_old_sessions(days=args.days)
+        return {"archived": len(archived), "session_ids": archived}
+
     if cmd == "list-sessions":
         status = SessionStatus(args.status) if args.status else None
         sessions = store.list_sessions(
-            project_slug=args.project, status=status
+            project_slug=args.project,
+            status=status,
+            include_archived=args.include_archived,
         )
         return [asdict(s) for s in sessions[: args.limit]]
 

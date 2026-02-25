@@ -11,10 +11,11 @@ import json
 import logging
 import os
 import secrets
+import shutil
 import tempfile
 from contextlib import contextmanager
 from dataclasses import asdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .models import (
@@ -31,6 +32,7 @@ from .models import (
 
 DASHBOARD_DIR = Path.home() / ".claude" / "dashboard"
 SESSIONS_DIR = DASHBOARD_DIR / "sessions"
+ARCHIVE_DIR = DASHBOARD_DIR / "sessions" / "archive"
 PROJECTS_DIR = DASHBOARD_DIR / "projects"
 CONFIG_PATH = DASHBOARD_DIR / "config.json"
 
@@ -42,6 +44,7 @@ CONFIG_PATH = DASHBOARD_DIR / "config.json"
 
 def _ensure_dirs() -> None:
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
     PROJECTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -188,7 +191,10 @@ def get_session(session_id: str) -> Session | None:
     _validate_session_id(session_id)
     path = SESSIONS_DIR / f"{session_id}.json"
     if not path.exists():
-        return None
+        # Fall back to archive
+        path = ARCHIVE_DIR / f"{session_id}.json"
+        if not path.exists():
+            return None
 
     with open(path) as f:
         data = json.load(f)
@@ -535,21 +541,33 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
 def list_sessions(
     project_slug: str | None = None,
     status: SessionStatus | None = None,
+    include_archived: bool = False,
 ) -> list[Session]:
-    """List sessions, optionally filtered by project and/or status."""
+    """List sessions, optionally filtered by project and/or status.
+
+    Archived sessions are excluded by default. Pass include_archived=True
+    to include them.
+    """
     _ensure_dirs()
     sessions = []
-    for path in SESSIONS_DIR.glob("sess_*.json"):
-        with open(path) as f:
-            data = json.load(f)
-        session = _session_from_dict(data)
 
-        if project_slug and session.project_slug != project_slug:
-            continue
-        if status and session.status != status:
-            continue
+    # Collect session files from active sessions dir
+    scan_dirs = [SESSIONS_DIR]
+    if include_archived:
+        scan_dirs.append(ARCHIVE_DIR)
 
-        sessions.append(session)
+    for scan_dir in scan_dirs:
+        for path in scan_dir.glob("sess_*.json"):
+            with open(path) as f:
+                data = json.load(f)
+            session = _session_from_dict(data)
+
+            if project_slug and session.project_slug != project_slug:
+                continue
+            if status and session.status != status:
+                continue
+
+            sessions.append(session)
 
     sessions.sort(key=lambda s: s.started_at, reverse=True)
     return sessions
@@ -636,6 +654,97 @@ def cleanup_orphaned_locks() -> list[str]:
             except OSError as exc:
                 logger.warning("Failed to remove orphaned lock %s: %s", lock_file, exc)
     return removed
+
+
+# ---------------------------------------------------------------------------
+# Archiving
+# ---------------------------------------------------------------------------
+
+
+def archive_session(session_id: str) -> bool:
+    """Move a completed session to the archive directory.
+
+    Returns True if archived, False if session not found or not completed.
+    """
+    _validate_session_id(session_id)
+    _ensure_dirs()
+    src = SESSIONS_DIR / f"{session_id}.json"
+    if not src.exists():
+        return False
+
+    with open(src) as f:
+        data = json.load(f)
+
+    if data.get("status") != SessionStatus.COMPLETED:
+        return False
+
+    dst = ARCHIVE_DIR / f"{session_id}.json"
+    shutil.move(str(src), str(dst))
+
+    # Clean up associated lock file if it exists
+    lock = SESSIONS_DIR / f"{session_id}.lock"
+    if lock.exists():
+        lock.unlink(missing_ok=True)
+
+    return True
+
+
+def archive_old_sessions(days: int | None = None) -> list[str]:
+    """Archive completed sessions older than N days.
+
+    Uses archive_after_days from config if days is not specified.
+    Returns list of archived session IDs.
+    """
+    if days is None:
+        config = load_config()
+        days = config.settings.archive_after_days
+
+    _ensure_dirs()
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    archived: list[str] = []
+    affected_projects: set[str] = set()
+
+    for path in SESSIONS_DIR.glob("sess_*.json"):
+        with open(path) as f:
+            data = json.load(f)
+
+        if data.get("status") != SessionStatus.COMPLETED:
+            continue
+
+        ended_at = data.get("ended_at")
+        if not ended_at:
+            continue
+
+        try:
+            ended = datetime.fromisoformat(ended_at)
+        except ValueError:
+            continue
+
+        if ended < cutoff:
+            sid = data["session_id"]
+            if archive_session(sid):
+                archived.append(sid)
+                affected_projects.add(data.get("project_slug", ""))
+
+    for slug in affected_projects:
+        if slug:
+            _refresh_project_state(slug)
+
+    return archived
+
+
+def get_archived_session(session_id: str) -> Session | None:
+    """Get a session from the archive."""
+    _validate_session_id(session_id)
+    path = ARCHIVE_DIR / f"{session_id}.json"
+    if not path.exists():
+        return None
+
+    with open(path) as f:
+        data = json.load(f)
+
+    data = _migrate_session_data(data)
+    return _session_from_dict(data)
 
 
 # ---------------------------------------------------------------------------

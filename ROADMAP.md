@@ -21,7 +21,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | B4 | Project CLAUDE.md with dev conventions | B | `[x]` |
 | B5 | Ruff / flake8 config in pyproject.toml | B | `[x]` |
 | C1 | Schema versioning in session JSON (`"schema_version": 2`) | C | `[x]` |
-| C2 | Archive implementation — move old sessions to `archive/` | C | `[ ]` |
+| C2 | Archive implementation — move old sessions to `archive/` | C | `[x]` |
 | C3 | Input validation on CLI arguments and JSON payloads | C | `[ ]` |
 | C4 | Structured error responses (consistent JSON errors from API) | C | `[ ]` |
 | C5 | Security hardening — path traversal checks, safe deserialization | C | `[ ]` |

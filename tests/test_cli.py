@@ -275,6 +275,7 @@ class TestQueryCommands:
             project=None,
             status=None,
             limit=20,
+            include_archived=False,
         ))
         assert isinstance(result, list)
         assert len(result) >= 1
@@ -285,6 +286,7 @@ class TestQueryCommands:
             project=project_slug,
             status="active",
             limit=10,
+            include_archived=False,
         ))
         assert len(result) == 1
 

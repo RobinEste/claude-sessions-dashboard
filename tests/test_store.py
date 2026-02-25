@@ -26,6 +26,7 @@ def _isolate_store(tmp_path, monkeypatch):
     """Redirect all store paths to a temp directory."""
     monkeypatch.setattr(store, "DASHBOARD_DIR", tmp_path)
     monkeypatch.setattr(store, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(store, "ARCHIVE_DIR", tmp_path / "sessions" / "archive")
     monkeypatch.setattr(store, "PROJECTS_DIR", tmp_path / "projects")
     monkeypatch.setattr(store, "CONFIG_PATH", tmp_path / "config.json")
     store._ensure_dirs()
@@ -513,6 +514,123 @@ class TestOrphanedLockCleanup:
 
         store.cleanup_stale_sessions(threshold_hours=24)
         assert not orphan.exists()
+
+
+# ---------------------------------------------------------------------------
+# Archiving
+# ---------------------------------------------------------------------------
+
+
+class TestArchiving:
+    def test_archive_completed_session(self, session_id):
+        """Completed sessions can be archived."""
+        store.complete_session(session_id, outcome="Done")
+        assert store.archive_session(session_id) is True
+
+        # Session file moved from sessions/ to archive/
+        assert not (store.SESSIONS_DIR / f"{session_id}.json").exists()
+        assert (store.ARCHIVE_DIR / f"{session_id}.json").exists()
+
+    def test_archive_active_session_rejected(self, session_id):
+        """Active sessions cannot be archived."""
+        assert store.archive_session(session_id) is False
+        assert (store.SESSIONS_DIR / f"{session_id}.json").exists()
+
+    def test_archive_nonexistent_session(self):
+        """Archiving a non-existent session returns False."""
+        assert store.archive_session("sess_20000101T0000_0000") is False
+
+    def test_archived_session_excluded_from_list(self, session_id):
+        """Archived sessions are excluded from list_sessions by default."""
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+
+        sessions = store.list_sessions()
+        assert len(sessions) == 0
+
+    def test_archived_session_included_with_flag(self, session_id):
+        """Archived sessions appear when include_archived=True."""
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+
+        sessions = store.list_sessions(include_archived=True)
+        assert len(sessions) == 1
+        assert sessions[0].session_id == session_id
+
+    def test_get_session_finds_archived(self, session_id):
+        """get_session falls back to archive directory."""
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+
+        s = store.get_session(session_id)
+        assert s is not None
+        assert s.outcome == "Done"
+
+    def test_archive_cleans_up_lock_file(self, session_id):
+        """Lock files are removed when a session is archived."""
+        lock = store.SESSIONS_DIR / f"{session_id}.lock"
+        lock.touch()
+
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+
+        assert not lock.exists()
+
+    def test_archive_old_sessions(self):
+        """archive_old_sessions moves sessions older than N days."""
+        store.register_project("P", "/tmp/p")
+        # Create and complete a session
+        s = store.create_session(project_slug="p", intent="Old work")
+        store.complete_session(s.session_id, outcome="Done")
+
+        # Backdate the ended_at to 60 days ago
+        path = store.SESSIONS_DIR / f"{s.session_id}.json"
+        with open(path) as f:
+            data = json.load(f)
+        old_date = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        data["ended_at"] = old_date
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+        archived = store.archive_old_sessions(days=30)
+        assert s.session_id in archived
+        assert (store.ARCHIVE_DIR / f"{s.session_id}.json").exists()
+
+    def test_archive_old_sessions_skips_recent(self):
+        """Recent completed sessions are not archived."""
+        s = store.create_session(project_slug="proj", intent="Recent")
+        store.complete_session(s.session_id, outcome="Done")
+
+        archived = store.archive_old_sessions(days=30)
+        assert len(archived) == 0
+        assert (store.SESSIONS_DIR / f"{s.session_id}.json").exists()
+
+    def test_archive_old_sessions_skips_active(self):
+        """Active sessions are never archived regardless of age."""
+        s = store.create_session(project_slug="proj", intent="Active")
+
+        # Backdate the heartbeat
+        path = store.SESSIONS_DIR / f"{s.session_id}.json"
+        with open(path) as f:
+            data = json.load(f)
+        data["ended_at"] = (datetime.now(UTC) - timedelta(days=60)).isoformat()
+        with open(path, "w") as f:
+            json.dump(data, f)
+
+        archived = store.archive_old_sessions(days=30)
+        assert len(archived) == 0
+
+    def test_get_archived_session(self, session_id):
+        """get_archived_session reads directly from archive."""
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+
+        s = store.get_archived_session(session_id)
+        assert s is not None
+        assert s.outcome == "Done"
+
+    def test_get_archived_session_not_found(self):
+        assert store.get_archived_session("sess_20000101T0000_0000") is None
 
 
 # ---------------------------------------------------------------------------
