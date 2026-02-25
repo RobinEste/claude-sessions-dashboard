@@ -387,7 +387,7 @@ def _setup_project(project_path: str, project_name: str | None) -> dict:
         "slug": slug,
         "project_path": str(project_dir),
         "skills_installed": installed,
-        "message": f"Skills installed. Use /session-start to begin tracking.",
+        "message": "Skills installed. Use /session-start to begin tracking.",
     }
 
 

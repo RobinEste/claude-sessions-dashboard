@@ -15,7 +15,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | A4 | pytest: store tests (CRUD, locking, atomic writes, stale cleanup) | A | `[x]` |
 | A5 | pytest: CLI tests (manage.py commands, JSON output) | A | `[x]` |
 | A6 | pytest: web tests (FastAPI TestClient, API routes) | A | `[x]` |
-| B1 | GitHub Actions: test + lint on push/PR | B | `[ ]` |
+| B1 | GitHub Actions: test + lint on push/PR | B | `[x]` |
 | B2 | CHANGELOG.md (retroactive from git log) | B | `[ ]` |
 | B3 | Lock file cleanup — remove orphaned `.lock` files (PYT-001) | B | `[ ]` |
 | B4 | Project CLAUDE.md with dev conventions | B | `[ ]` |
