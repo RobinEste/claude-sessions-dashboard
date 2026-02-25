@@ -13,8 +13,8 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | A2 | `requirements.txt` for quick installs | A | `[x]` |
 | A3 | pytest: model tests (serialization round-trip, ID generation) | A | `[x]` |
 | A4 | pytest: store tests (CRUD, locking, atomic writes, stale cleanup) | A | `[x]` |
-| A5 | pytest: CLI tests (manage.py commands, JSON output) | A | `[ ]` |
-| A6 | pytest: web tests (FastAPI TestClient, API routes) | A | `[ ]` |
+| A5 | pytest: CLI tests (manage.py commands, JSON output) | A | `[x]` |
+| A6 | pytest: web tests (FastAPI TestClient, API routes) | A | `[x]` |
 | B1 | GitHub Actions: test + lint on push/PR | B | `[ ]` |
 | B2 | CHANGELOG.md (retroactive from git log) | B | `[ ]` |
 | B3 | Lock file cleanup — remove orphaned `.lock` files (PYT-001) | B | `[ ]` |
