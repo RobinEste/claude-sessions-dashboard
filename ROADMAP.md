@@ -12,7 +12,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | A1 | `pyproject.toml` with metadata and optional `[web]` extra | A | `[x]` |
 | A2 | `requirements.txt` for quick installs | A | `[x]` |
 | A3 | pytest: model tests (serialization round-trip, ID generation) | A | `[x]` |
-| A4 | pytest: store tests (CRUD, locking, atomic writes, stale cleanup) | A | `[ ]` |
+| A4 | pytest: store tests (CRUD, locking, atomic writes, stale cleanup) | A | `[x]` |
 | A5 | pytest: CLI tests (manage.py commands, JSON output) | A | `[ ]` |
 | A6 | pytest: web tests (FastAPI TestClient, API routes) | A | `[ ]` |
 | B1 | GitHub Actions: test + lint on push/PR | B | `[ ]` |
