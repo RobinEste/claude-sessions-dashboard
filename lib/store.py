@@ -490,9 +490,12 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         roadmap_ref=roadmap_ref,
         git_branch=git_branch,
     )
-    new_session.open_questions = open_questions
-    new_session.outcome = None  # clear any inherited state
-    _save_session(new_session)
+    # Update new session under its own lock to avoid race with concurrent writes
+    with _session_lock(new_session.session_id):
+        fresh_new = get_session(new_session.session_id)
+        fresh_new.open_questions = open_questions
+        _save_session(fresh_new)
+    new_session = fresh_new
 
     # Update old session with reference to new one
     with _session_lock(session_id):
