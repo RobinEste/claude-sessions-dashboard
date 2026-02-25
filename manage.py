@@ -168,7 +168,10 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
 
-    result = _dispatch(args)
+    try:
+        result = _dispatch(args)
+    except ValueError as e:
+        result = {"error": str(e)}
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
@@ -262,7 +265,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         return {"updated": len(sessions), "session_ids": [s.session_id for s in sessions]}
 
     if cmd == "complete-session":
-        commits = json.loads(args.commits) if args.commits else None
+        try:
+            commits = json.loads(args.commits) if args.commits else None
+        except json.JSONDecodeError as e:
+            return {"error": f"Invalid commits JSON: {e}"}
         session = store.complete_session(
             session_id=args.session_id,
             outcome=args.outcome,

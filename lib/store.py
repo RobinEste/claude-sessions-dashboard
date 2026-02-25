@@ -29,6 +29,24 @@ from .models import (
     TaskStatus,
     generate_session_id,
 )
+from .validation import (
+    MAX_ACTIVITY,
+    MAX_DECISION,
+    MAX_INTENT,
+    MAX_MESSAGE,
+    MAX_OUTCOME,
+    MAX_PROJECT_NAME,
+    MAX_REASON,
+    MAX_ROADMAP_REF,
+    MAX_TASK_SUBJECT,
+    validate_commits_json,
+    validate_git_branch,
+    validate_optional_string,
+    validate_positive_int,
+    validate_project_slug,
+    validate_sha,
+    validate_string_length,
+)
 
 DASHBOARD_DIR = Path.home() / ".claude" / "dashboard"
 SESSIONS_DIR = DASHBOARD_DIR / "sessions"
@@ -142,6 +160,7 @@ def save_config(config: DashboardConfig) -> None:
 
 def register_project(name: str, path: str) -> str:
     """Register a project. Returns the slug. Idempotent."""
+    validate_string_length(name, "project name", MAX_PROJECT_NAME)
     slug = _slugify(os.path.basename(path))
     config = load_config()
 
@@ -172,6 +191,10 @@ def create_session(
     git_branch: str = "main",
 ) -> Session:
     """Create a new active session."""
+    validate_project_slug(project_slug)
+    intent = validate_string_length(intent, "intent", MAX_INTENT)
+    roadmap_ref = validate_optional_string(roadmap_ref, "roadmap_ref", MAX_ROADMAP_REF)
+    git_branch = validate_git_branch(git_branch)
     session = Session(
         session_id=generate_session_id(),
         project_slug=project_slug,
@@ -270,8 +293,20 @@ def heartbeat_project(project_slug: str) -> list[Session]:
     return updated
 
 
+_UPDATE_FIELD_LIMITS = {
+    "intent": MAX_INTENT,
+    "current_activity": MAX_ACTIVITY,
+    "roadmap_ref": MAX_ROADMAP_REF,
+    "outcome": MAX_OUTCOME,
+    "parked_reason": MAX_REASON,
+}
+
+
 def update_session(session_id: str, **kwargs) -> Session | None:
     """Update arbitrary fields on a session."""
+    for key, value in kwargs.items():
+        if isinstance(value, str) and key in _UPDATE_FIELD_LIMITS:
+            kwargs[key] = validate_string_length(value, key, _UPDATE_FIELD_LIMITS[key])
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -287,6 +322,7 @@ def update_session(session_id: str, **kwargs) -> Session | None:
 
 def add_event(session_id: str, message: str) -> Session | None:
     """Append an event to the session event log (append-only)."""
+    message = validate_string_length(message, "event message", MAX_MESSAGE)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -300,6 +336,8 @@ def add_event(session_id: str, message: str) -> Session | None:
 
 def add_commit(session_id: str, sha: str, message: str) -> Session | None:
     """Append a commit to the session. Deduplicates on SHA[:7]."""
+    validate_sha(sha)
+    message = validate_string_length(message, "commit message", MAX_MESSAGE)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -316,6 +354,7 @@ def add_commit(session_id: str, sha: str, message: str) -> Session | None:
 
 def add_decision(session_id: str, decision: str) -> Session | None:
     """Append a decision to the session. Deduplicates on text."""
+    decision = validate_string_length(decision, "decision", MAX_DECISION)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -330,6 +369,7 @@ def add_decision(session_id: str, decision: str) -> Session | None:
 
 def request_action(session_id: str, reason: str) -> Session | None:
     """Mark a session as awaiting user action."""
+    reason = validate_string_length(reason, "reason", MAX_REASON)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -369,6 +409,7 @@ def add_task(session_id: str, subject: str) -> Session | None:
 
 def add_tasks(session_id: str, subjects: list[str]) -> Session | None:
     """Batch-append tasks to the session. Deduplicates on subject."""
+    subjects = [validate_string_length(s, "task subject", MAX_TASK_SUBJECT) for s in subjects]
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -401,6 +442,7 @@ def update_task(
     session_id: str, task_id: str, status: str, subject: str | None = None
 ) -> Session | None:
     """Update a task's status (and optionally subject). Raises ValueError if task_id not found."""
+    subject = validate_optional_string(subject, "task subject", MAX_TASK_SUBJECT)
     if status not in VALID_TASK_STATUSES:
         raise ValueError(
             f"Invalid status '{status}'. Must be one of: {sorted(VALID_TASK_STATUSES)}"
@@ -441,6 +483,9 @@ def complete_session(
     decisions: list[str] | None = None,
 ) -> Session | None:
     """Mark session as completed."""
+    outcome = validate_string_length(outcome, "outcome", MAX_OUTCOME)
+    if commits is not None:
+        validate_commits_json(commits)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -469,6 +514,7 @@ def park_session(
     next_steps: list[str] | None = None,
 ) -> Session | None:
     """Park a session with a reason."""
+    reason = validate_string_length(reason, "reason", MAX_REASON)
     with _session_lock(session_id):
         session = get_session(session_id)
         if not session:
@@ -702,6 +748,8 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
     if days is None:
         config = load_config()
         days = config.settings.archive_after_days
+    else:
+        validate_positive_int(days, "days", max_val=3650)
 
     _ensure_dirs()
     cutoff = datetime.now(UTC) - timedelta(days=days)

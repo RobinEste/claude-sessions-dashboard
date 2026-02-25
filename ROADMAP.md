@@ -22,7 +22,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | B5 | Ruff / flake8 config in pyproject.toml | B | `[x]` |
 | C1 | Schema versioning in session JSON (`"schema_version": 2`) | C | `[x]` |
 | C2 | Archive implementation — move old sessions to `archive/` | C | `[x]` |
-| C3 | Input validation on CLI arguments and JSON payloads | C | `[ ]` |
+| C3 | Input validation on CLI arguments and JSON payloads | C | `[x]` |
 | C4 | Structured error responses (consistent JSON errors from API) | C | `[ ]` |
 | C5 | Security hardening — path traversal checks, safe deserialization | C | `[ ]` |
 | D1 | Session index file for fast lookup without scanning all files | D | `[ ]` |
