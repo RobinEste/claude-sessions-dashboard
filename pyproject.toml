@@ -31,6 +31,11 @@ web = [
     "fastapi>=0.109",
     "uvicorn>=0.27",
 ]
+test = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+    "httpx>=0.27",
+]
 
 [project.scripts]
 claude-dashboard = "manage:main"
