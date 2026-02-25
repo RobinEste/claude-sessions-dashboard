@@ -566,7 +566,25 @@ def cleanup_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
             continue
     for slug in affected_projects:
         _refresh_project_state(slug)
+
+    cleanup_orphaned_locks()
+
     return cleaned
+
+
+def cleanup_orphaned_locks() -> list[str]:
+    """Remove .lock files that have no matching session JSON file."""
+    _ensure_dirs()
+    removed: list[str] = []
+    for lock_file in SESSIONS_DIR.glob("*.lock"):
+        session_file = lock_file.with_suffix(".json")
+        if not session_file.exists():
+            try:
+                lock_file.unlink()
+                removed.append(lock_file.name)
+            except OSError as exc:
+                logger.warning("Failed to remove orphaned lock %s: %s", lock_file, exc)
+    return removed
 
 
 # ---------------------------------------------------------------------------

@@ -262,6 +262,13 @@ class TestQueryCommands:
         result = _dispatch(ns(command="cleanup-stale"))
         assert result["cleaned"] == 0
 
+    def test_cleanup_locks(self):
+        orphan = store.SESSIONS_DIR / "sess_orphan_0000.lock"
+        orphan.touch()
+        result = _dispatch(ns(command="cleanup-locks"))
+        assert result["removed"] == 1
+        assert "sess_orphan_0000.lock" in result["files"]
+
     def test_list_sessions(self, session_id):
         result = _dispatch(ns(
             command="list-sessions",

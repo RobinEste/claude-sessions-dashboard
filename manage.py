@@ -126,6 +126,7 @@ def main() -> None:
 
     sub.add_parser("stale-sessions", help="List stale sessions")
     sub.add_parser("cleanup-stale", help="Auto-close stale sessions")
+    sub.add_parser("cleanup-locks", help="Remove orphaned .lock files")
 
     p = sub.add_parser("list-sessions", help="List all sessions")
     p.add_argument("--project", help="Filter by project slug")
@@ -291,6 +292,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             "cleaned": len(cleaned),
             "session_ids": [s.session_id for s in cleaned],
         }
+
+    if cmd == "cleanup-locks":
+        removed = store.cleanup_orphaned_locks()
+        return {"removed": len(removed), "files": removed}
 
     if cmd == "list-sessions":
         status = SessionStatus(args.status) if args.status else None

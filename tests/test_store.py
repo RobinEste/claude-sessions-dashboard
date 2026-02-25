@@ -442,6 +442,40 @@ class TestStaleDetection:
 
 
 # ---------------------------------------------------------------------------
+# Orphaned lock cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestOrphanedLockCleanup:
+    def test_cleanup_removes_orphaned_locks(self):
+        """Lock files without matching session JSON are removed."""
+        orphan = store.SESSIONS_DIR / "sess_fake_0000.lock"
+        orphan.touch()
+
+        removed = store.cleanup_orphaned_locks()
+        assert "sess_fake_0000.lock" in removed
+        assert not orphan.exists()
+
+    def test_cleanup_keeps_locks_with_sessions(self):
+        """Lock files with matching session JSON are kept."""
+        s = store.create_session(project_slug="test", intent="Active")
+        lock = store.SESSIONS_DIR / f"{s.session_id}.lock"
+        lock.touch()
+
+        removed = store.cleanup_orphaned_locks()
+        assert len(removed) == 0
+        assert lock.exists()
+
+    def test_cleanup_stale_also_cleans_locks(self):
+        """cleanup_stale_sessions() calls lock cleanup automatically."""
+        orphan = store.SESSIONS_DIR / "sess_old_0000.lock"
+        orphan.touch()
+
+        store.cleanup_stale_sessions(threshold_hours=24)
+        assert not orphan.exists()
+
+
+# ---------------------------------------------------------------------------
 # Project state
 # ---------------------------------------------------------------------------
 
