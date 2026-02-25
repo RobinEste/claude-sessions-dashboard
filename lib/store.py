@@ -497,10 +497,14 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
     # Update old session with reference to new one
     with _session_lock(session_id):
         old = get_session(session_id)
+        if old is None:
+            logger.warning("Old session %s vanished during resume", session_id)
+            _refresh_project_state(project_slug)
+            return new_session
         old.outcome = f"Resumed as {new_session.session_id}"
         _save_session(old)
 
-    _refresh_project_state(old.project_slug)
+    _refresh_project_state(project_slug)
     return new_session
 
 
