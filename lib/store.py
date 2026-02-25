@@ -503,6 +503,7 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         # Mark old session as completed (resumed into new)
         old.status = SessionStatus.COMPLETED
         old.ended_at = _now_iso()
+        old.outcome = "Resuming..."  # placeholder, overwritten in lock-blok 3
         _save_session(old)
 
     # Create new session outside lock to avoid nested locking
@@ -515,6 +516,8 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
     # Update new session under its own lock to avoid race with concurrent writes
     with _session_lock(new_session.session_id):
         fresh_new = get_session(new_session.session_id)
+        if fresh_new is None:
+            raise RuntimeError(f"Session {new_session.session_id} vanished after creation")
         fresh_new.open_questions = open_questions
         _save_session(fresh_new)
     new_session = fresh_new
@@ -560,6 +563,7 @@ def list_sessions(
         for path in scan_dir.glob("sess_*.json"):
             with open(path) as f:
                 data = json.load(f)
+            data = _migrate_session_data(data)
             session = _session_from_dict(data)
 
             if project_slug and session.project_slug != project_slug:
@@ -668,22 +672,22 @@ def archive_session(session_id: str) -> bool:
     """
     _validate_session_id(session_id)
     _ensure_dirs()
-    src = SESSIONS_DIR / f"{session_id}.json"
-    if not src.exists():
-        return False
+    with _session_lock(session_id):
+        src = SESSIONS_DIR / f"{session_id}.json"
+        if not src.exists():
+            return False
 
-    with open(src) as f:
-        data = json.load(f)
+        with open(src) as f:
+            data = json.load(f)
 
-    if data.get("status") != SessionStatus.COMPLETED:
-        return False
+        if data.get("status") != SessionStatus.COMPLETED:
+            return False
 
-    dst = ARCHIVE_DIR / f"{session_id}.json"
-    shutil.move(str(src), str(dst))
+        dst = ARCHIVE_DIR / f"{session_id}.json"
+        shutil.move(str(src), str(dst))
 
-    # Clean up associated lock file if it exists
-    lock = SESSIONS_DIR / f"{session_id}.lock"
-    if lock.exists():
+        # Clean up lock file inside lock block to preserve locking invariant
+        lock = SESSIONS_DIR / f"{session_id}.lock"
         lock.unlink(missing_ok=True)
 
     return True
@@ -720,11 +724,34 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
         except ValueError:
             continue
 
+        if ended.tzinfo is None:
+            ended = ended.replace(tzinfo=UTC)
+
         if ended < cutoff:
-            sid = data["session_id"]
-            if archive_session(sid):
-                archived.append(sid)
-                affected_projects.add(data.get("project_slug", ""))
+            sid = data.get("session_id")
+            if not sid:
+                logger.warning("Skipping file without session_id: %s", path)
+                continue
+            try:
+                _validate_session_id(sid)
+            except ValueError:
+                logger.warning("Skipping session with invalid ID in file %s", path)
+                continue
+            # Move under lock with full re-validation (SOL-2026-004)
+            with _session_lock(sid):
+                if not path.exists():
+                    continue
+                with open(path) as f:
+                    fresh = json.load(f)
+                if fresh.get("status") != SessionStatus.COMPLETED:
+                    continue
+                dst = ARCHIVE_DIR / f"{sid}.json"
+                shutil.move(str(path), str(dst))
+                # Clean up lock file inside lock block
+                lock = SESSIONS_DIR / f"{sid}.lock"
+                lock.unlink(missing_ok=True)
+            archived.append(sid)
+            affected_projects.add(data.get("project_slug", ""))
 
     for slug in affected_projects:
         if slug:
