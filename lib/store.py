@@ -341,7 +341,7 @@ def add_tasks(session_id: str, subjects: list[str]) -> Session | None:
         if not session:
             return None
 
-        existing_subjects = {t["subject"] for t in session.tasks}
+        existing_subjects = {t["subject"] for t in session.tasks if "subject" in t}
         now = _now_iso()
         added = False
 
@@ -380,12 +380,13 @@ def update_task(
 
         for task in session.tasks:
             if task["id"] == task_id:
+                if subject is not None:
+                    existing = {t["subject"] for t in session.tasks if t["id"] != task_id and "subject" in t}
+                    if subject in existing:
+                        raise ValueError(f"Task subject '{subject}' already exists in session {session_id}")
                 task["status"] = status
                 task["updated_at"] = _now_iso()
                 if subject is not None:
-                    existing = {t["subject"] for t in session.tasks if t["id"] != task_id}
-                    if subject in existing:
-                        raise ValueError(f"Task subject '{subject}' already exists in session {session_id}")
                     task["subject"] = subject
                 session.last_heartbeat = _now_iso()
                 _save_session(session)
