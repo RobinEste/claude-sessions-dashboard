@@ -160,7 +160,7 @@ def save_config(config: DashboardConfig) -> None:
 
 def register_project(name: str, path: str) -> str:
     """Register a project. Returns the slug. Idempotent."""
-    validate_string_length(name, "project name", MAX_PROJECT_NAME)
+    name = validate_string_length(name, "project name", MAX_PROJECT_NAME)
     slug = _slugify(os.path.basename(path))
     config = load_config()
 
@@ -534,6 +534,9 @@ def park_session(
 def resume_session(session_id: str, new_intent: str | None = None) -> Session:
     """Resume a parked session — creates a new active session
     with the old session's context, and marks the old one as completed."""
+    # Pre-generate new session ID so we can write the definitive outcome immediately
+    new_session_id = generate_session_id()
+
     with _session_lock(session_id):
         old = get_session(session_id)
         if not old:
@@ -549,34 +552,22 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         # Mark old session as completed (resumed into new)
         old.status = SessionStatus.COMPLETED
         old.ended_at = _now_iso()
-        old.outcome = "Resuming..."  # placeholder, overwritten in lock-blok 3
+        old.outcome = f"Resumed as {new_session_id}"
         _save_session(old)
 
-    # Create new session outside lock to avoid nested locking
-    new_session = create_session(
+    # Create new session with pre-generated ID (outside lock to avoid nesting)
+    new_session = Session(
+        session_id=new_session_id,
         project_slug=project_slug,
+        status=SessionStatus.ACTIVE,
         intent=intent,
         roadmap_ref=roadmap_ref,
+        started_at=_now_iso(),
+        last_heartbeat=_now_iso(),
         git_branch=git_branch,
+        open_questions=open_questions,
     )
-    # Update new session under its own lock to avoid race with concurrent writes
-    with _session_lock(new_session.session_id):
-        fresh_new = get_session(new_session.session_id)
-        if fresh_new is None:
-            raise RuntimeError(f"Session {new_session.session_id} vanished after creation")
-        fresh_new.open_questions = open_questions
-        _save_session(fresh_new)
-    new_session = fresh_new
-
-    # Update old session with reference to new one
-    with _session_lock(session_id):
-        old = get_session(session_id)
-        if old is None:
-            logger.warning("Old session %s vanished during resume", session_id)
-            _refresh_project_state(project_slug)
-            return new_session
-        old.outcome = f"Resumed as {new_session.session_id}"
-        _save_session(old)
+    _save_session(new_session)
 
     _refresh_project_state(project_slug)
     return new_session
@@ -732,9 +723,9 @@ def archive_session(session_id: str) -> bool:
         dst = ARCHIVE_DIR / f"{session_id}.json"
         shutil.move(str(src), str(dst))
 
-        # Clean up lock file inside lock block to preserve locking invariant
-        lock = SESSIONS_DIR / f"{session_id}.lock"
-        lock.unlink(missing_ok=True)
+    # Clean up lock file after releasing lock (outside block to preserve inode invariant)
+    lock = SESSIONS_DIR / f"{session_id}.lock"
+    lock.unlink(missing_ok=True)
 
     return True
 
@@ -748,8 +739,7 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
     if days is None:
         config = load_config()
         days = config.settings.archive_after_days
-    else:
-        validate_positive_int(days, "days", max_val=3650)
+    validate_positive_int(days, "days", max_val=3650)
 
     _ensure_dirs()
     cutoff = datetime.now(UTC) - timedelta(days=days)
@@ -795,9 +785,9 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
                     continue
                 dst = ARCHIVE_DIR / f"{sid}.json"
                 shutil.move(str(path), str(dst))
-                # Clean up lock file inside lock block
-                lock = SESSIONS_DIR / f"{sid}.lock"
-                lock.unlink(missing_ok=True)
+            # Clean up lock file after releasing lock
+            lock = SESSIONS_DIR / f"{sid}.lock"
+            lock.unlink(missing_ok=True)
             archived.append(sid)
             affected_projects.add(data.get("project_slug", ""))
 

@@ -41,9 +41,10 @@ def validate_string_length(value: str, field: str, max_len: int) -> str:
     """Validate string is non-empty and within length limit."""
     if not value or not value.strip():
         raise ValueError(f"{field} cannot be empty")
-    if len(value) > max_len:
-        raise ValueError(f"{field} too long ({len(value)} chars, max {max_len})")
-    return value.strip()
+    stripped = value.strip()
+    if len(stripped) > max_len:
+        raise ValueError(f"{field} too long ({len(stripped)} chars, max {max_len})")
+    return stripped
 
 
 def validate_optional_string(value: str | None, field: str, max_len: int) -> str | None:
@@ -100,10 +101,15 @@ def validate_port(port: int) -> int:
     return port
 
 
+MAX_COMMITS = 500
+
+
 def validate_commits_json(commits: list) -> list[dict]:
     """Validate that commits is a list of {sha, message} dicts."""
     if not isinstance(commits, list):
         raise ValueError("Commits must be a JSON array")
+    if len(commits) > MAX_COMMITS:
+        raise ValueError(f"Too many commits ({len(commits)}, max {MAX_COMMITS})")
     for i, entry in enumerate(commits):
         if not isinstance(entry, dict):
             raise ValueError(f"Commit entry {i} must be an object")
