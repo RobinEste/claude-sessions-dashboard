@@ -86,20 +86,29 @@ def _atomic_write(path: Path, data: dict) -> None:
 
 
 def _safe_read_json(path: Path) -> dict:
-    """Read and parse a JSON file with size limit and symlink check.
+    """Read and parse a JSON file with size limit and symlink rejection.
+
+    Uses O_NOFOLLOW to atomically reject symlinks (no TOCTOU race).
 
     Raises:
         ValueError: if file is a symlink or exceeds size limit.
         json.JSONDecodeError: if file contains invalid JSON.
     """
-    if path.is_symlink():
-        raise ValueError(f"Refusing to read symlink: {path.name}")
-    size = path.stat().st_size
+    import errno
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as e:
+        if e.errno in (errno.ELOOP, errno.EMLINK):
+            raise ValueError(f"Refusing to read symlink: {path.name}") from e
+        raise
+    size = os.fstat(fd).st_size
     if size > MAX_JSON_FILE_SIZE:
+        os.close(fd)
         raise ValueError(
             f"File too large: {path.name} ({size} bytes, max {MAX_JSON_FILE_SIZE})"
         )
-    with open(path) as f:
+    with os.fdopen(fd) as f:
         return json.load(f)
 
 
@@ -334,19 +343,35 @@ def _save_index(index: dict[str, dict]) -> None:
     _atomic_write(_index_path(), index)
 
 
+@contextmanager
+def _index_lock():
+    """Acquire an exclusive file lock for the session index."""
+    _ensure_dirs()
+    lock_path = _index_path().with_suffix(".lock")
+    lock_fd = open(lock_path, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
+
+
 def _update_index(session: Session) -> None:
     """Add or update a session entry in the index."""
-    index = _load_index()
-    index[session.session_id] = _index_entry(session)
-    _save_index(index)
+    with _index_lock():
+        index = _load_index()
+        index[session.session_id] = _index_entry(session)
+        _save_index(index)
 
 
 def _remove_from_index(session_id: str) -> None:
     """Remove a session from the index (e.g. after archiving)."""
-    index = _load_index()
-    if session_id in index:
-        del index[session_id]
-        _save_index(index)
+    with _index_lock():
+        index = _load_index()
+        if session_id in index:
+            del index[session_id]
+            _save_index(index)
 
 
 def rebuild_index() -> dict[str, dict]:
@@ -677,24 +702,47 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
 # ---------------------------------------------------------------------------
 
 
+def _session_from_index(sid: str, entry: dict) -> Session:
+    """Build a lightweight Session from an index entry (no file I/O)."""
+    return Session(
+        session_id=sid,
+        project_slug=entry.get("project_slug", ""),
+        status=entry.get("status", SessionStatus.ACTIVE),
+        intent=entry.get("intent", ""),
+        started_at=entry.get("started_at"),
+        ended_at=entry.get("ended_at"),
+        last_heartbeat=entry.get("last_heartbeat"),
+    )
+
+
 def list_sessions(
     project_slug: str | None = None,
     status: SessionStatus | None = None,
     include_archived: bool = False,
+    full_load: bool = True,
 ) -> list[Session]:
     """List sessions, optionally filtered by project and/or status.
 
     Uses the session index for fast pre-filtering. Falls back to full
     file scan if the index is empty or missing.
+    When full_load=False, returns lightweight Session objects from the
+    index without reading individual session files (fast path).
     Archived sessions are excluded by default. Pass include_archived=True
     to include them.
     """
     _ensure_dirs()
 
-    # Use index for active sessions (fast path)
-    index = _load_index()
-    if not index:
+    # Rebuild index if file doesn't exist; load if it does.
+    # _load_index returns {} for both missing and corrupt files,
+    # so we check existence first to avoid rebuilding on empty (valid) index.
+    idx_path = _index_path()
+    if not idx_path.exists():
         index = rebuild_index()
+    else:
+        index = _load_index()
+        # If file exists but returned empty, it might be corrupt — check file
+        if not index and idx_path.stat().st_size > 2:
+            index = rebuild_index()
 
     sessions = []
     for sid, entry in index.items():
@@ -702,9 +750,12 @@ def list_sessions(
             continue
         if status and entry.get("status") != status:
             continue
-        session = get_session(sid)
-        if session:
-            sessions.append(session)
+        if full_load:
+            session = get_session(sid)
+            if session:
+                sessions.append(session)
+        else:
+            sessions.append(_session_from_index(sid, entry))
 
     # Include archived sessions by scanning archive dir (not indexed)
     if include_archived:
@@ -835,12 +886,12 @@ def archive_session(session_id: str) -> bool:
 
         dst = ARCHIVE_DIR / f"{session_id}.json"
         shutil.move(str(src), str(dst))
+        _remove_from_index(session_id)
 
     # Clean up lock file after releasing lock (outside block to preserve inode invariant)
     lock = SESSIONS_DIR / f"{session_id}.lock"
     lock.unlink(missing_ok=True)
 
-    _remove_from_index(session_id)
     return True
 
 
@@ -901,10 +952,10 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
                     continue
                 dst = ARCHIVE_DIR / f"{sid}.json"
                 shutil.move(str(path), str(dst))
+                _remove_from_index(sid)
             # Clean up lock file after releasing lock
             lock = SESSIONS_DIR / f"{sid}.lock"
             lock.unlink(missing_ok=True)
-            _remove_from_index(sid)
             archived.append(sid)
             affected_projects.add(data.get("project_slug", ""))
 

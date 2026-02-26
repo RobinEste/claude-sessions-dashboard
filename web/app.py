@@ -47,7 +47,8 @@ def _error_response(message: str, code: str, status_code: int) -> JSONResponse:
 
 @app.exception_handler(ValueError)
 async def value_error_handler(request: Request, exc: ValueError):
-    return _error_response(str(exc), "VALIDATION_ERROR", 400)
+    logger.warning("ValueError on %s: %s", request.url.path, exc)
+    return _error_response("Invalid request", "VALIDATION_ERROR", 400)
 
 
 @app.exception_handler(json.JSONDecodeError)
