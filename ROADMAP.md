@@ -25,7 +25,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | C3 | Input validation on CLI arguments and JSON payloads | C | `[x]` |
 | C4 | Structured error responses (consistent JSON errors from API) | C | `[x]` |
 | C5 | Security hardening — path traversal checks, safe deserialization | C | `[x]` |
-| D1 | Session index file for fast lookup without scanning all files | D | `[ ]` |
+| D1 | Session index file for fast lookup without scanning all files | D | `[x]` |
 | D2 | Search / filter in web dashboard | D | `[ ]` |
 | D3 | Session detail view in web dashboard | D | `[ ]` |
 | D4 | Export (JSON / Markdown) of session history | D | `[ ]` |

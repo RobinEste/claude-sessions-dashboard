@@ -863,3 +863,102 @@ class TestProjectSlugValidation:
     def test_register_project_accepts_valid_slug(self):
         slug = store.register_project("MyProject", "/tmp/my-project")
         assert slug == "my-project"
+
+
+# ---------------------------------------------------------------------------
+# Session index (D1)
+# ---------------------------------------------------------------------------
+
+
+class TestSessionIndex:
+    """Test _index.json maintenance and rebuild."""
+
+    def test_create_session_updates_index(self):
+        s = store.create_session(project_slug="test-proj", intent="Index test")
+        index = store._load_index()
+        assert s.session_id in index
+        assert index[s.session_id]["project_slug"] == "test-proj"
+        assert index[s.session_id]["status"] == "active"
+        assert index[s.session_id]["intent"] == "Index test"
+
+    def test_update_session_updates_index(self, session_id):
+        store.update_session(session_id, intent="Updated intent")
+        index = store._load_index()
+        assert index[session_id]["intent"] == "Updated intent"
+
+    def test_complete_session_updates_index_status(self, session_id):
+        store.complete_session(session_id, outcome="Done")
+        index = store._load_index()
+        assert index[session_id]["status"] == "completed"
+
+    def test_archive_removes_from_index(self, session_id):
+        store.complete_session(session_id, outcome="Done")
+        store.archive_session(session_id)
+        index = store._load_index()
+        assert session_id not in index
+
+    def test_rebuild_index_from_files(self):
+        s1 = store.create_session(project_slug="a", intent="First")
+        s2 = store.create_session(project_slug="b", intent="Second")
+
+        # Delete the index
+        store._index_path().unlink()
+        assert not store._index_path().exists()
+
+        # Rebuild
+        index = store.rebuild_index()
+        assert s1.session_id in index
+        assert s2.session_id in index
+        assert index[s1.session_id]["project_slug"] == "a"
+        assert index[s2.session_id]["project_slug"] == "b"
+
+    def test_list_sessions_rebuilds_missing_index(self):
+        s = store.create_session(project_slug="test", intent="Auto rebuild")
+
+        # Delete the index
+        store._index_path().unlink()
+
+        # list_sessions should rebuild and still find the session
+        sessions = store.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].session_id == s.session_id
+
+        # Index should now exist again
+        assert store._index_path().exists()
+
+    def test_corrupt_index_triggers_rebuild(self):
+        s = store.create_session(project_slug="test", intent="Corrupt index test")
+
+        # Corrupt the index
+        store._index_path().write_text("{{{not json")
+
+        # list_sessions should recover
+        sessions = store.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].session_id == s.session_id
+
+    def test_index_not_affected_by_archived_sessions(self):
+        s = store.create_session(project_slug="test", intent="Archive test")
+        store.complete_session(s.session_id, outcome="Done")
+        store.archive_session(s.session_id)
+
+        index = store._load_index()
+        assert s.session_id not in index
+
+        # But include_archived still finds it
+        sessions = store.list_sessions(include_archived=True)
+        assert any(sess.session_id == s.session_id for sess in sessions)
+
+    def test_multiple_sessions_index_filtering(self):
+        store.register_project("P1", "/tmp/p1")
+        store.register_project("P2", "/tmp/p2")
+        s1 = store.create_session(project_slug="p1", intent="Proj 1")
+        s2 = store.create_session(project_slug="p2", intent="Proj 2")
+        s3 = store.create_session(project_slug="p1", intent="Proj 1 again")
+
+        p1_sessions = store.list_sessions(project_slug="p1")
+        assert len(p1_sessions) == 2
+        ids = {s.session_id for s in p1_sessions}
+        assert s1.session_id in ids
+        assert s3.session_id in ids
+        assert s2.session_id not in ids

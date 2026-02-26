@@ -290,6 +290,84 @@ def _save_session(session: Session) -> None:
     data = asdict(session)
     data["schema_version"] = SCHEMA_VERSION
     _atomic_write(path, data)
+    _update_index(session)
+
+
+# ---------------------------------------------------------------------------
+# Session index — lightweight lookup without scanning all files
+# ---------------------------------------------------------------------------
+
+
+def _index_path() -> Path:
+    return SESSIONS_DIR / "_index.json"
+
+
+def _index_entry(session: Session) -> dict:
+    """Build a lightweight index entry from a session."""
+    return {
+        "project_slug": session.project_slug,
+        "status": session.status,
+        "intent": session.intent,
+        "started_at": session.started_at,
+        "ended_at": session.ended_at,
+        "last_heartbeat": session.last_heartbeat,
+    }
+
+
+def _load_index() -> dict[str, dict]:
+    """Load the session index. Returns empty dict if missing or corrupt."""
+    path = _index_path()
+    if not path.exists():
+        return {}
+    try:
+        data = _safe_read_json(path)
+        if not isinstance(data, dict):
+            return {}
+        return data
+    except (json.JSONDecodeError, ValueError):
+        logger.warning("Session index corrupt, will rebuild on next write")
+        return {}
+
+
+def _save_index(index: dict[str, dict]) -> None:
+    """Atomically write the session index."""
+    _atomic_write(_index_path(), index)
+
+
+def _update_index(session: Session) -> None:
+    """Add or update a session entry in the index."""
+    index = _load_index()
+    index[session.session_id] = _index_entry(session)
+    _save_index(index)
+
+
+def _remove_from_index(session_id: str) -> None:
+    """Remove a session from the index (e.g. after archiving)."""
+    index = _load_index()
+    if session_id in index:
+        del index[session_id]
+        _save_index(index)
+
+
+def rebuild_index() -> dict[str, dict]:
+    """Rebuild the index by scanning all session files.
+
+    Used as fallback when the index is missing or corrupt.
+    Returns the rebuilt index.
+    """
+    _ensure_dirs()
+    index: dict[str, dict] = {}
+    for path in SESSIONS_DIR.glob("sess_*.json"):
+        try:
+            data = _safe_read_json(path)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Skipping corrupt file during index rebuild: %s: %s", path.name, exc)
+            continue
+        data = _migrate_session_data(data)
+        session = _session_from_dict(data)
+        index[session.session_id] = _index_entry(session)
+    _save_index(index)
+    return index
 
 
 def heartbeat(session_id: str) -> Session | None:
@@ -606,19 +684,31 @@ def list_sessions(
 ) -> list[Session]:
     """List sessions, optionally filtered by project and/or status.
 
+    Uses the session index for fast pre-filtering. Falls back to full
+    file scan if the index is empty or missing.
     Archived sessions are excluded by default. Pass include_archived=True
     to include them.
     """
     _ensure_dirs()
+
+    # Use index for active sessions (fast path)
+    index = _load_index()
+    if not index:
+        index = rebuild_index()
+
     sessions = []
+    for sid, entry in index.items():
+        if project_slug and entry.get("project_slug") != project_slug:
+            continue
+        if status and entry.get("status") != status:
+            continue
+        session = get_session(sid)
+        if session:
+            sessions.append(session)
 
-    # Collect session files from active sessions dir
-    scan_dirs = [SESSIONS_DIR]
+    # Include archived sessions by scanning archive dir (not indexed)
     if include_archived:
-        scan_dirs.append(ARCHIVE_DIR)
-
-    for scan_dir in scan_dirs:
-        for path in scan_dir.glob("sess_*.json"):
+        for path in ARCHIVE_DIR.glob("sess_*.json"):
             try:
                 data = _safe_read_json(path)
             except (json.JSONDecodeError, ValueError) as exc:
@@ -750,6 +840,7 @@ def archive_session(session_id: str) -> bool:
     lock = SESSIONS_DIR / f"{session_id}.lock"
     lock.unlink(missing_ok=True)
 
+    _remove_from_index(session_id)
     return True
 
 
@@ -813,6 +904,7 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
             # Clean up lock file after releasing lock
             lock = SESSIONS_DIR / f"{sid}.lock"
             lock.unlink(missing_ok=True)
+            _remove_from_index(sid)
             archived.append(sid)
             affected_projects.add(data.get("project_slug", ""))
 

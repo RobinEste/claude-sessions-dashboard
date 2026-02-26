@@ -30,6 +30,7 @@ def _isolate_store(tmp_path, monkeypatch):
     """Redirect all store paths to a temp directory."""
     monkeypatch.setattr(store, "DASHBOARD_DIR", tmp_path)
     monkeypatch.setattr(store, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(store, "ARCHIVE_DIR", tmp_path / "sessions" / "archive")
     monkeypatch.setattr(store, "PROJECTS_DIR", tmp_path / "projects")
     monkeypatch.setattr(store, "CONFIG_PATH", tmp_path / "config.json")
     store._ensure_dirs()
@@ -370,3 +371,21 @@ class TestCLISubprocess:
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert "projects" in data
+
+
+# ---------------------------------------------------------------------------
+# rebuild-index (D1)
+# ---------------------------------------------------------------------------
+
+
+class TestRebuildIndex:
+    def test_rebuild_index_command(self):
+        store.create_session(project_slug="test", intent="Session 1")
+        store.create_session(project_slug="test", intent="Session 2")
+
+        # Delete index to force rebuild
+        store._index_path().unlink()
+
+        result = _dispatch(ns(command="rebuild-index"))
+        assert result["status"] == "rebuilt"
+        assert result["entries"] == 2

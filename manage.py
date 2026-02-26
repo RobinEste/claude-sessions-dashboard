@@ -154,6 +154,9 @@ def main() -> None:
     p.add_argument("--in-progress", nargs="*", help="In-progress roadmap items")
     p.add_argument("--next-up", nargs="*", help="Next 3 roadmap items")
 
+    # --- Index management ---
+    sub.add_parser("rebuild-index", help="Rebuild session index from files")
+
     # --- Dashboard overview ---
     sub.add_parser("overview", help="Full dashboard overview")
 
@@ -347,6 +350,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             roadmap_next_up=args.next_up,
         )
         return asdict(state)
+
+    if cmd == "rebuild-index":
+        index = store.rebuild_index()
+        return {"status": "rebuilt", "entries": len(index)}
 
     if cmd == "overview":
         return store.build_overview()
