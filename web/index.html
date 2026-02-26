@@ -171,18 +171,6 @@
     user-select: none;
   }
 
-  .expand-icon {
-    color: var(--text-muted);
-    font-size: 10px;
-    width: 14px;
-    text-align: center;
-    flex-shrink: 0;
-    transition: transform 0.15s;
-  }
-
-  .session-card.expanded .expand-icon {
-    transform: rotate(90deg);
-  }
 
   .dot {
     width: 8px;
@@ -260,31 +248,13 @@
     flex-shrink: 0;
   }
 
-  /* Expanded detail panel */
-  .card-detail {
-    display: none;
-    border-top: 1px solid var(--border);
-    padding: 16px;
+  /* Session card hover — indicates clickable */
+  .session-card .card-row {
+    transition: background 0.15s;
   }
 
-  .session-card.expanded .card-detail {
-    display: block;
-  }
-
-  .detail-section {
-    margin-bottom: 12px;
-  }
-
-  .detail-section:last-child {
-    margin-bottom: 0;
-  }
-
-  .detail-meta {
-    display: flex;
-    gap: 16px;
-    font-size: 12px;
-    color: var(--text-muted);
-    flex-wrap: wrap;
+  .session-card .card-row:hover {
+    background: var(--bg-hover);
   }
 
   .detail-branch {
@@ -304,54 +274,6 @@
     margin-bottom: 4px;
   }
 
-  /* Event log — timeline */
-  .event-list {
-    list-style: none;
-    position: relative;
-    padding-left: 12px;
-  }
-
-  .event-list::before {
-    content: '';
-    position: absolute;
-    left: 3px;
-    top: 6px;
-    bottom: 6px;
-    width: 2px;
-    background: var(--border);
-    border-radius: 1px;
-  }
-
-  .event-item {
-    display: flex;
-    gap: 8px;
-    padding: 3px 0;
-    font-size: 13px;
-    position: relative;
-  }
-
-  .event-item::before {
-    content: '';
-    position: absolute;
-    left: -11px;
-    top: 10px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-  }
-
-  .event-time {
-    color: var(--text-muted);
-    font-size: 12px;
-    white-space: nowrap;
-    flex-shrink: 0;
-    min-width: 50px;
-  }
-
-  .event-msg {
-    color: var(--text);
-  }
 
   /* Detail lists */
   .detail-list {
@@ -472,6 +394,135 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Detail view */
+  .detail-view {
+    display: none;
+  }
+
+  .detail-view.visible {
+    display: block;
+  }
+
+  .detail-back {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--accent-blue);
+    font-size: 13px;
+    padding: 6px 14px;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: all 0.15s;
+  }
+
+  .detail-back:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-blue);
+  }
+
+  .detail-view-header {
+    margin-bottom: 20px;
+  }
+
+  .detail-view-title {
+    color: var(--text-bright);
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .detail-view-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .detail-view-meta .tag {
+    font-size: 12px;
+    padding: 2px 10px;
+  }
+
+  .detail-view-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 640px) {
+    .detail-view-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .detail-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+
+  .detail-panel-full {
+    grid-column: 1 / -1;
+  }
+
+  .detail-panel .detail-label {
+    margin-bottom: 8px;
+  }
+
+  /* Full event timeline */
+  .timeline-event {
+    display: flex;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .timeline-event:last-child {
+    border-bottom: none;
+  }
+
+  .timeline-date {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .timeline-msg {
+    color: var(--text);
+  }
+
+  /* Commit detail */
+  .commit-detail {
+    display: flex;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+    align-items: baseline;
+  }
+
+  .commit-detail .commit-sha {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 12px;
+  }
+
+  /* File list in detail view */
+  .file-item {
+    padding: 3px 0;
+    font-size: 13px;
+    font-family: 'SF Mono', 'Menlo', monospace;
+    color: var(--text);
+  }
+
   /* Commits list */
   .detail-list.commits li {
     font-family: 'SF Mono', 'Menlo', monospace;
@@ -498,23 +549,6 @@
     margin-right: 2px;
   }
 
-  /* Show all events button */
-  .show-all-events {
-    background: none;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    color: var(--accent-blue);
-    font-size: 12px;
-    padding: 3px 10px;
-    cursor: pointer;
-    margin-top: 6px;
-    transition: all 0.15s;
-  }
-
-  .show-all-events:hover {
-    background: var(--bg-hover);
-    border-color: var(--accent-blue);
-  }
 
   /* Task tracking */
   .tag-tasks {
@@ -584,15 +618,22 @@
 </header>
 
 <div class="error-banner" id="error-banner"></div>
-<div class="search-bar">
-  <input type="text" class="search-input" id="search-input" placeholder="Search sessions...">
-  <button class="search-clear" id="search-clear">clear</button>
-  <select class="filter-select" id="project-filter">
-    <option value="">All projects</option>
-  </select>
+
+<!-- List view -->
+<div id="list-view">
+  <div class="search-bar">
+    <input type="text" class="search-input" id="search-input" placeholder="Search sessions...">
+    <button class="search-clear" id="search-clear">clear</button>
+    <select class="filter-select" id="project-filter">
+      <option value="">All projects</option>
+    </select>
+  </div>
+  <div class="filters" id="filters"></div>
+  <div id="sessions"></div>
 </div>
-<div class="filters" id="filters"></div>
-<div id="sessions"></div>
+
+<!-- Detail view -->
+<div class="detail-view" id="detail-view"></div>
 
 <footer id="footer"></footer>
 
@@ -602,8 +643,9 @@ let errorCount = 0;
 let currentFilter = 'all';
 let currentProject = '';
 let searchQuery = '';
-let expandedIds = new Set();
 let lastData = null;
+let currentDetailId = null;  // session_id when in detail view
+let detailData = null;       // full session data for detail view
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -723,8 +765,6 @@ function renderFilters(sessions) {
 }
 
 function renderCardRow(s) {
-  const isExpanded = expandedIds.has(s.session_id);
-
   // Dot priority: awaiting_action > stale > active
   let dotClass = 'dot-active';
   if (s.type === 'parked') dotClass = 'dot-parked';
@@ -738,9 +778,8 @@ function renderCardRow(s) {
   else if (s.type === 'parked') time = timeAgo(s.ended_at);
   else if (s.type === 'completed') time = timeAgo(s.ended_at);
 
-  let html = '<div class="session-card' + (isExpanded ? ' expanded' : '') + '" data-id="' + esc(s.session_id) + '">';
-  html += '<div class="card-row" onclick="toggleCard(\'' + esc(s.session_id) + '\')">';
-  html += '<span class="expand-icon">&#9654;</span>';
+  let html = '<div class="session-card" data-id="' + esc(s.session_id) + '">';
+  html += '<div class="card-row" onclick="openDetail(\'' + esc(s.session_id) + '\')">';
   html += '<span class="dot ' + dotClass + '"></span>';
   html += '<span class="card-intent">' + esc(s.intent) + '</span>';
 
@@ -782,71 +821,137 @@ function renderCardRow(s) {
   html += '<span class="card-time">' + esc(time) + '</span>';
   html += '</div>';
 
-  // Detail panel
-  html += '<div class="card-detail">';
-  html += renderDetail(s);
-  html += '</div>';
-
   html += '</div>';
   return html;
 }
 
-function renderDetail(s) {
-  let html = '';
 
-  // Session meta info
-  html += '<div class="detail-section">';
-  html += '<div class="detail-meta">';
+function openDetail(id) {
+  currentDetailId = id;
+  detailData = null;
+  showDetailView();
+  loadSessionDetail(id);
+}
+
+function closeDetail() {
+  currentDetailId = null;
+  detailData = null;
+  showListView();
+}
+
+function showDetailView() {
+  document.getElementById('list-view').style.display = 'none';
+  const dv = document.getElementById('detail-view');
+  dv.classList.add('visible');
+  dv.innerHTML = '<button class="detail-back" onclick="closeDetail()">&larr; Back to sessions</button><div class="empty-msg">Loading session data...</div>';
+}
+
+function showListView() {
+  document.getElementById('detail-view').classList.remove('visible');
+  document.getElementById('detail-view').innerHTML = '';
+  document.getElementById('list-view').style.display = '';
+}
+
+async function loadSessionDetail(id) {
+  try {
+    const resp = await fetch('/api/session/' + encodeURIComponent(id));
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    detailData = await resp.json();
+    // Enrich with project info from lastData
+    if (lastData) {
+      for (const p of lastData.projects) {
+        for (const list of [p.active_sessions, p.parked_sessions, p.completed_sessions]) {
+          for (const s of (list || [])) {
+            if (s.session_id === id) {
+              detailData._project_name = p.name;
+              detailData._is_stale = s.is_stale || false;
+              detailData._type = s.is_stale ? 'active' : (detailData.status || 'active');
+            }
+          }
+        }
+      }
+    }
+    if (!detailData._type) detailData._type = detailData.status || 'active';
+    if (!detailData._project_name) detailData._project_name = detailData.project_slug;
+    renderDetailView();
+  } catch (err) {
+    const dv = document.getElementById('detail-view');
+    dv.innerHTML = '<button class="detail-back" onclick="closeDetail()">&larr; Back to sessions</button>' +
+      '<div class="empty-msg">Failed to load session: ' + esc(err.message) + '</div>';
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) +
+    ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+}
+
+function renderDetailView() {
+  if (!detailData || currentDetailId !== detailData.session_id) return;
+  const s = detailData;
+  const dv = document.getElementById('detail-view');
+
+  // Status dot
+  let dotClass = 'dot-active';
+  if (s.status === 'parked') dotClass = 'dot-parked';
+  else if (s.status === 'completed') dotClass = 'dot-completed';
+  else if (s._is_stale) dotClass = 'dot-stale';
+
+  let html = '<button class="detail-back" onclick="closeDetail()">&larr; Back to sessions</button>';
+
+  // Header
+  html += '<div class="detail-view-header">';
+  html += '<div class="detail-view-title">';
+  html += '<span class="dot ' + dotClass + '"></span>';
+  html += esc(s.intent);
+  html += '</div>';
+  html += '<div class="detail-view-meta">';
   html += '<span>' + esc(s.session_id) + '</span>';
-  html += '<span>' + esc(s.project_name) + '</span>';
+  html += '<span class="tag tag-project">' + esc(s._project_name) + '</span>';
+  if (s.roadmap_ref) html += '<span class="tag tag-ref">' + esc(s.roadmap_ref) + '</span>';
   if (s.git_branch) html += '<span class="detail-branch">' + esc(s.git_branch) + '</span>';
-  if (s.started_at) html += '<span>Started: ' + formatTime(s.started_at) + '</span>';
+  html += '<span>Status: ' + esc(s.status) + '</span>';
+  if (s.started_at) html += '<span>Started: ' + formatDate(s.started_at) + '</span>';
   if (s.ended_at) {
-    html += '<span>Ended: ' + formatTime(s.ended_at) + '</span>';
+    html += '<span>Ended: ' + formatDate(s.ended_at) + '</span>';
     const dur = formatDuration(s.started_at, s.ended_at);
     if (dur) html += '<span>Duration: ' + dur + '</span>';
-  } else if (s.type === 'active' && s.started_at) {
+  } else if (s.status === 'active' && s.started_at) {
     html += '<span>Running: ' + formatElapsed(s.started_at) + '</span>';
   }
-  if (s.type === 'active' && s.last_heartbeat) {
-    html += '<span>Last active: ' + timeAgo(s.last_heartbeat) + '</span>';
-  }
+  if (s.last_heartbeat) html += '<span>Last active: ' + timeAgo(s.last_heartbeat) + '</span>';
   html += '</div>';
   html += '</div>';
 
-  // Event log
-  const events = s.events || [];
-  const totalEventCount = s.event_count || events.length;
-  if (events.length > 0) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Event log' + (totalEventCount > events.length ? ' (' + events.length + ' of ' + totalEventCount + ')' : '') + '</div>';
-    html += '<ul class="event-list" id="events-' + esc(s.session_id) + '">';
-    const reversed = [...events].reverse();
-    for (const e of reversed) {
-      html += '<li class="event-item">';
-      html += '<span class="event-time">' + formatTime(e.timestamp) + '</span>';
-      html += '<span class="event-msg">' + esc(e.message) + '</span>';
-      html += '</li>';
-    }
-    html += '</ul>';
-    if (totalEventCount > events.length) {
-      html += '<button class="show-all-events" onclick="loadAllEvents(\'' + esc(s.session_id) + '\')">Show all events (' + totalEventCount + ')</button>';
-    }
+  // Outcome or parked reason — prominent display
+  if (s.status === 'completed' && s.outcome) {
+    html += '<div class="detail-panel" style="margin-bottom:12px">';
+    html += '<div class="detail-label">Outcome</div>';
+    html += '<div class="detail-outcome">' + esc(s.outcome) + '</div>';
+    html += '</div>';
+  }
+  if (s.status === 'parked' && s.parked_reason) {
+    html += '<div class="detail-panel" style="margin-bottom:12px">';
+    html += '<div class="detail-label">Parked reason</div>';
+    html += '<div class="detail-reason">' + esc(s.parked_reason) + '</div>';
     html += '</div>';
   }
 
-  // Tasks
+  // Grid: tasks + event timeline side by side
+  html += '<div class="detail-view-grid">';
+
+  // Tasks panel
   const tasks = s.tasks || [];
   if (tasks.length > 0) {
-    const ts = s.task_summary || {};
-    const completedTasks = ts.completed || 0;
-    const pct = Math.round((completedTasks / tasks.length) * 100);
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Tasks (' + completedTasks + '/' + tasks.length + ')</div>';
+    const completed = tasks.filter(t => t.status === 'completed').length;
+    const pct = Math.round((completed / tasks.length) * 100);
+    html += '<div class="detail-panel">';
+    html += '<div class="detail-label">Tasks (' + completed + '/' + tasks.length + ')</div>';
     html += '<div class="task-progress-bar"><div class="task-progress-fill" style="width:' + pct + '%"></div></div>';
     for (const t of tasks) {
-      let icon = '\u25CB'; // pending
-      let cls = 'task-pending';
+      let icon = '\u25CB', cls = 'task-pending';
       if (t.status === 'completed') { icon = '\u2713'; cls = 'task-completed'; }
       else if (t.status === 'in_progress') { icon = '\u25B8'; cls = 'task-in-progress'; }
       else if (t.status === 'skipped') { icon = '\u2013'; cls = 'task-skipped'; }
@@ -858,67 +963,51 @@ function renderDetail(s) {
     html += '</div>';
   }
 
-  // Outcome (completed)
-  if (s.type === 'completed' && s.outcome) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Outcome</div>';
-    html += '<div class="detail-outcome">' + esc(s.outcome) + '</div>';
-    html += '</div>';
-  }
-
-  // Parked reason
-  if (s.type === 'parked' && s.parked_reason) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Parked reason</div>';
-    html += '<div class="detail-reason">' + esc(s.parked_reason) + '</div>';
-    html += '</div>';
-  }
-
-  // Files changed
-  const files = s.files_changed || [];
-  if (files.length > 0) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Files changed (' + files.length + ')</div>';
-    html += '<ul class="detail-list files">';
-    for (const f of files) {
-      html += '<li>' + esc(f) + '</li>';
+  // Event timeline (full)
+  const events = s.events || [];
+  if (events.length > 0) {
+    html += '<div class="detail-panel' + (tasks.length === 0 ? ' detail-panel-full' : '') + '">';
+    html += '<div class="detail-label">Event timeline (' + events.length + ')</div>';
+    const reversed = [...events].reverse();
+    for (const e of reversed) {
+      html += '<div class="timeline-event">';
+      html += '<span class="timeline-date">' + formatDate(e.timestamp) + '</span>';
+      html += '<span class="timeline-msg">' + esc(e.message) + '</span>';
+      html += '</div>';
     }
-    html += '</ul>';
     html += '</div>';
   }
 
   // Commits
   const commits = s.commits || [];
   if (commits.length > 0) {
-    html += '<div class="detail-section">';
+    html += '<div class="detail-panel">';
     html += '<div class="detail-label">Commits (' + commits.length + ')</div>';
-    html += '<ul class="detail-list commits">';
     for (const c of commits) {
-      const sha = (c.sha || '').substring(0, 7);
-      html += '<li><span class="commit-sha">' + esc(sha) + '</span><span class="commit-msg">' + esc(c.message || '') + '</span></li>';
+      html += '<div class="commit-detail">';
+      html += '<span class="commit-sha">' + esc((c.sha || '').substring(0, 7)) + '</span>';
+      html += '<span class="commit-msg">' + esc(c.message || '') + '</span>';
+      html += '</div>';
     }
-    html += '</ul>';
     html += '</div>';
   }
 
-  // Next steps
-  const nextSteps = s.next_steps || [];
-  if (nextSteps.length > 0) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Next steps</div>';
-    html += '<ul class="detail-list next-steps">';
-    for (const ns of nextSteps) {
-      html += '<li>' + esc(ns) + '</li>';
+  // Files changed
+  const files = s.files_changed || [];
+  if (files.length > 0) {
+    html += '<div class="detail-panel">';
+    html += '<div class="detail-label">Files changed (' + files.length + ')</div>';
+    for (const f of files) {
+      html += '<div class="file-item">' + esc(f) + '</div>';
     }
-    html += '</ul>';
     html += '</div>';
   }
 
   // Decisions
   const decisions = s.decisions || [];
   if (decisions.length > 0) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Decisions</div>';
+    html += '<div class="detail-panel">';
+    html += '<div class="detail-label">Decisions (' + decisions.length + ')</div>';
     html += '<ul class="detail-list decisions">';
     for (const d of decisions) {
       html += '<li>' + esc(d) + '</li>';
@@ -930,8 +1019,8 @@ function renderDetail(s) {
   // Open questions
   const questions = s.open_questions || [];
   if (questions.length > 0) {
-    html += '<div class="detail-section">';
-    html += '<div class="detail-label">Open questions</div>';
+    html += '<div class="detail-panel">';
+    html += '<div class="detail-label">Open questions (' + questions.length + ')</div>';
     html += '<ul class="detail-list questions">';
     for (const q of questions) {
       html += '<li>' + esc(q) + '</li>';
@@ -940,16 +1029,22 @@ function renderDetail(s) {
     html += '</div>';
   }
 
-  return html;
-}
-
-function toggleCard(id) {
-  if (expandedIds.has(id)) {
-    expandedIds.delete(id);
-  } else {
-    expandedIds.add(id);
+  // Next steps
+  const nextSteps = s.next_steps || [];
+  if (nextSteps.length > 0) {
+    html += '<div class="detail-panel">';
+    html += '<div class="detail-label">Next steps</div>';
+    html += '<ul class="detail-list next-steps">';
+    for (const ns of nextSteps) {
+      html += '<li>' + esc(ns) + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
   }
-  render();
+
+  html += '</div>'; // close grid
+
+  dv.innerHTML = html;
 }
 
 function renderProjectHeader(p) {
@@ -978,31 +1073,6 @@ function renderProjectHeader(p) {
   return html;
 }
 
-async function loadAllEvents(sessionId) {
-  try {
-    const resp = await fetch('/api/session/' + encodeURIComponent(sessionId));
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const full = await resp.json();
-    updateSessionInData(sessionId, { events: full.events, event_count: full.events.length });
-    render();
-  } catch (err) {
-    console.error('Failed to load all events:', err);
-  }
-}
-
-function updateSessionInData(sessionId, updates) {
-  if (!lastData) return;
-  for (const p of lastData.projects) {
-    for (const list of [p.active_sessions, p.parked_sessions, p.completed_sessions]) {
-      for (const s of (list || [])) {
-        if (s.session_id === sessionId) {
-          Object.assign(s, updates);
-          return;
-        }
-      }
-    }
-  }
-}
 
 function renderProjectDropdown(data) {
   const select = document.getElementById('project-filter');

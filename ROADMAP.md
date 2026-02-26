@@ -27,7 +27,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | C5 | Security hardening — path traversal checks, safe deserialization | C | `[x]` |
 | D1 | Session index file for fast lookup without scanning all files | D | `[x]` |
 | D2 | Search / filter in web dashboard | D | `[x]` |
-| D3 | Session detail view in web dashboard | D | `[ ]` |
+| D3 | Session detail view in web dashboard | D | `[x]` |
 | D4 | Export (JSON / Markdown) of session history | D | `[ ]` |
 | D5 | Optional desktop notifications for stale sessions | D | `[ ]` |
 

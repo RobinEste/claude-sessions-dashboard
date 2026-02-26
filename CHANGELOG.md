@@ -6,6 +6,7 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 ## [Unreleased]
 
 ### Toegevoegd
+- Session detail view: klik op een sessie voor volledig overzicht met event timeline, tasks, commits, decisions, files en next steps (D3)
 - Zoeken en filteren in web dashboard: free-text search, project dropdown, status filters (D2)
 - Session index (`_index.json`) voor snelle lookup zonder alle bestanden te scannen (D1)
 - Security hardening: symlink check, file size limiet (10MB), slug validatie op alle paden, corrupte JSON overslaan (C5)
