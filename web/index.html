@@ -53,6 +53,65 @@
     font-size: 13px;
   }
 
+  /* Search and filter bar */
+  .search-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .search-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px 12px;
+    flex: 1;
+    min-width: 200px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .search-input:focus {
+    border-color: var(--accent-blue);
+  }
+
+  .search-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .filter-select {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 13px;
+    padding: 6px 10px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .filter-select:focus {
+    border-color: var(--accent-blue);
+  }
+
+  .search-clear {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 4px 8px;
+    display: none;
+  }
+
+  .search-clear:hover {
+    color: var(--text);
+  }
+
   /* Filter bar */
   .filters {
     display: flex;
@@ -525,6 +584,13 @@
 </header>
 
 <div class="error-banner" id="error-banner"></div>
+<div class="search-bar">
+  <input type="text" class="search-input" id="search-input" placeholder="Search sessions...">
+  <button class="search-clear" id="search-clear">clear</button>
+  <select class="filter-select" id="project-filter">
+    <option value="">All projects</option>
+  </select>
+</div>
 <div class="filters" id="filters"></div>
 <div id="sessions"></div>
 
@@ -534,6 +600,8 @@
 const POLL_INTERVAL = 30000;
 let errorCount = 0;
 let currentFilter = 'all';
+let currentProject = '';
+let searchQuery = '';
 let expandedIds = new Set();
 let lastData = null;
 
@@ -599,12 +667,38 @@ function collectSessions(data) {
   return sessions;
 }
 
+function matchesSearch(s, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  if ((s.intent || '').toLowerCase().includes(q)) return true;
+  if ((s.outcome || '').toLowerCase().includes(q)) return true;
+  if ((s.current_activity || '').toLowerCase().includes(q)) return true;
+  if ((s.session_id || '').toLowerCase().includes(q)) return true;
+  if ((s.git_branch || '').toLowerCase().includes(q)) return true;
+  for (const e of (s.events || [])) {
+    if ((e.message || '').toLowerCase().includes(q)) return true;
+  }
+  for (const d of (s.decisions || [])) {
+    if ((d || '').toLowerCase().includes(q)) return true;
+  }
+  for (const t of (s.tasks || [])) {
+    if ((t.subject || '').toLowerCase().includes(q)) return true;
+  }
+  return false;
+}
+
 function filterSessions(sessions, filter) {
-  if (filter === 'all') return sessions;
-  if (filter === 'active') return sessions.filter(s => s.type === 'active');
-  if (filter === 'parked') return sessions.filter(s => s.type === 'parked');
-  if (filter === 'completed') return sessions.filter(s => s.type === 'completed');
-  return sessions;
+  let result = sessions;
+  if (filter !== 'all') {
+    result = result.filter(s => s.type === filter);
+  }
+  if (currentProject) {
+    result = result.filter(s => s.project_slug === currentProject);
+  }
+  if (searchQuery) {
+    result = result.filter(s => matchesSearch(s, searchQuery));
+  }
+  return result;
 }
 
 function renderFilters(sessions) {
@@ -910,14 +1004,41 @@ function updateSessionInData(sessionId, updates) {
   }
 }
 
+function renderProjectDropdown(data) {
+  const select = document.getElementById('project-filter');
+  const projects = data.projects || [];
+  // Only show dropdown if there are multiple projects
+  if (projects.length <= 1) {
+    select.style.display = 'none';
+    return;
+  }
+  select.style.display = '';
+  const current = select.value;
+  let html = '<option value="">All projects</option>';
+  for (const p of projects) {
+    const sel = p.slug === current ? ' selected' : '';
+    html += '<option value="' + esc(p.slug) + '"' + sel + '>' + esc(p.name) + '</option>';
+  }
+  select.innerHTML = html;
+}
+
 function render() {
   if (!lastData) return;
 
   const all = collectSessions(lastData);
   const filtered = filterSessions(all, currentFilter);
 
-  // Filters
-  document.getElementById('filters').innerHTML = renderFilters(all);
+  // Project dropdown
+  renderProjectDropdown(lastData);
+
+  // Search clear button
+  const clearBtn = document.getElementById('search-clear');
+  clearBtn.style.display = searchQuery ? 'block' : 'none';
+
+  // Filters (counts reflect search + project filter, not status filter)
+  document.getElementById('filters').innerHTML = renderFilters(
+    all.filter(s => matchesSearch(s, searchQuery) && (!currentProject || s.project_slug === currentProject))
+  );
 
   // Bind filter clicks
   for (const btn of document.querySelectorAll('.filter-btn')) {
@@ -930,10 +1051,12 @@ function render() {
   // Session cards grouped by project
   const container = document.getElementById('sessions');
   if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-msg">No sessions found</div>';
+    const msg = searchQuery ? 'No sessions matching "' + esc(searchQuery) + '"' : 'No sessions found';
+    container.innerHTML = '<div class="empty-msg">' + msg + '</div>';
   } else {
     let html = '';
     for (const p of lastData.projects) {
+      if (currentProject && p.slug !== currentProject) continue;
       const projectSessions = filtered.filter(s => s.project_slug === p.slug);
       if (projectSessions.length === 0) continue;
       html += '<div class="project-group">';
@@ -974,6 +1097,28 @@ async function refresh() {
     banner.style.display = 'block';
   }
 }
+
+// Search input — debounced
+let searchTimeout = null;
+document.getElementById('search-input').addEventListener('input', function() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(function() {
+    searchQuery = document.getElementById('search-input').value.trim();
+    render();
+  }, 200);
+});
+
+document.getElementById('search-clear').addEventListener('click', function() {
+  searchQuery = '';
+  document.getElementById('search-input').value = '';
+  render();
+});
+
+// Project filter
+document.getElementById('project-filter').addEventListener('change', function() {
+  currentProject = this.value;
+  render();
+});
 
 // Initial load + polling
 refresh();
