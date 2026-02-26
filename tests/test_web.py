@@ -22,6 +22,7 @@ def _isolate_store(tmp_path, monkeypatch):
     """Redirect all store paths to a temp directory."""
     monkeypatch.setattr(store, "DASHBOARD_DIR", tmp_path)
     monkeypatch.setattr(store, "SESSIONS_DIR", tmp_path / "sessions")
+    monkeypatch.setattr(store, "ARCHIVE_DIR", tmp_path / "sessions" / "archive")
     monkeypatch.setattr(store, "PROJECTS_DIR", tmp_path / "projects")
     monkeypatch.setattr(store, "CONFIG_PATH", tmp_path / "config.json")
     store._ensure_dirs()
@@ -100,7 +101,9 @@ class TestApiSessionDetail:
     def test_session_detail_not_found(self, client):
         resp = client.get("/api/session/sess_20000101T0000_0000")
         assert resp.status_code == 404
-        assert "error" in resp.json()
+        data = resp.json()
+        assert data["error"] == "Session not found"
+        assert data["code"] == "NOT_FOUND"
 
     def test_session_detail_includes_tasks(self, client):
         s = store.create_session(project_slug="p", intent="With tasks")
@@ -110,6 +113,34 @@ class TestApiSessionDetail:
         data = resp.json()
         assert len(data["tasks"]) == 1
         assert data["tasks"][0]["subject"] == "Task 1"
+
+
+# ---------------------------------------------------------------------------
+# Structured error responses (C4)
+# ---------------------------------------------------------------------------
+
+
+class TestStructuredErrors:
+    def test_invalid_session_id_returns_validation_error(self, client):
+        resp = client.get("/api/session/bad-id")
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["code"] == "VALIDATION_ERROR"
+        assert "error" in data
+
+    def test_not_found_has_code_field(self, client):
+        resp = client.get("/api/session/sess_20000101T0000_0000")
+        data = resp.json()
+        assert data["code"] == "NOT_FOUND"
+
+    def test_error_response_is_json(self, client):
+        resp = client.get("/api/session/bad-id")
+        assert "application/json" in resp.headers["content-type"]
+
+    def test_all_error_fields_present(self, client):
+        resp = client.get("/api/session/sess_20000101T0000_0000")
+        data = resp.json()
+        assert set(data.keys()) == {"error", "code"}
 
 
 # ---------------------------------------------------------------------------

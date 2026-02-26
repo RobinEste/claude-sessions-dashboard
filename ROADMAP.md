@@ -23,7 +23,7 @@ engineering foundation: tests, packaging, CI/CD, and data lifecycle management.
 | C1 | Schema versioning in session JSON (`"schema_version": 2`) | C | `[x]` |
 | C2 | Archive implementation — move old sessions to `archive/` | C | `[x]` |
 | C3 | Input validation on CLI arguments and JSON payloads | C | `[x]` |
-| C4 | Structured error responses (consistent JSON errors from API) | C | `[ ]` |
+| C4 | Structured error responses (consistent JSON errors from API) | C | `[x]` |
 | C5 | Security hardening — path traversal checks, safe deserialization | C | `[ ]` |
 | D1 | Session index file for fast lookup without scanning all files | D | `[ ]` |
 | D2 | Search / filter in web dashboard | D | `[ ]` |

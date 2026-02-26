@@ -6,6 +6,7 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 ## [Unreleased]
 
 ### Toegevoegd
+- Gestructureerde JSON foutresponses met `{"error", "code"}` format in API (C4)
 - Input validatie op CLI-argumenten en store-operaties met `lib/validation.py` (C3)
 - Sessie-archivering: voltooide sessies verplaatsen naar `archive/` na N dagen (C2)
 - Schema versioning met on-read migratie (`schema_version: 2`) (C1)
