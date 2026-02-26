@@ -10,6 +10,7 @@ import fcntl
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import tempfile
@@ -84,13 +85,33 @@ def _atomic_write(path: Path, data: dict) -> None:
         raise
 
 
+def _safe_read_json(path: Path) -> dict:
+    """Read and parse a JSON file with size limit and symlink check.
+
+    Raises:
+        ValueError: if file is a symlink or exceeds size limit.
+        json.JSONDecodeError: if file contains invalid JSON.
+    """
+    if path.is_symlink():
+        raise ValueError(f"Refusing to read symlink: {path.name}")
+    size = path.stat().st_size
+    if size > MAX_JSON_FILE_SIZE:
+        raise ValueError(
+            f"File too large: {path.name} ({size} bytes, max {MAX_JSON_FILE_SIZE})"
+        )
+    with open(path) as f:
+        return json.load(f)
+
+
 def _slugify(name: str) -> str:
     return name.lower().replace(" ", "-").replace("_", "-")
 
 
 logger = logging.getLogger(__name__)
 
-_SESSION_ID_RE = __import__("re").compile(r"^sess_\d{8}T\d{4}_[0-9a-f]{4}$")
+_SESSION_ID_RE = re.compile(r"^sess_\d{8}T\d{4}_[0-9a-f]{4}$")
+
+MAX_JSON_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _validate_session_id(session_id: str) -> None:
@@ -126,8 +147,7 @@ def load_config() -> DashboardConfig:
         save_config(config)
         return config
 
-    with open(CONFIG_PATH) as f:
-        data = json.load(f)
+    data = _safe_read_json(CONFIG_PATH)
 
     projects = {}
     for slug, proj_data in data.get("projects", {}).items():
@@ -162,6 +182,7 @@ def register_project(name: str, path: str) -> str:
     """Register a project. Returns the slug. Idempotent."""
     name = validate_string_length(name, "project name", MAX_PROJECT_NAME)
     slug = _slugify(os.path.basename(path))
+    validate_project_slug(slug)
     config = load_config()
 
     if slug not in config.projects:
@@ -219,8 +240,7 @@ def get_session(session_id: str) -> Session | None:
         if not path.exists():
             return None
 
-    with open(path) as f:
-        data = json.load(f)
+    data = _safe_read_json(path)
 
     data = _migrate_session_data(data)
     return _session_from_dict(data)
@@ -285,6 +305,7 @@ def heartbeat(session_id: str) -> Session | None:
 
 def heartbeat_project(project_slug: str) -> list[Session]:
     """Update heartbeat for ALL active sessions of a project."""
+    validate_project_slug(project_slug)
     updated = []
     for session in get_active_sessions(project_slug):
         result = heartbeat(session.session_id)
@@ -598,8 +619,11 @@ def list_sessions(
 
     for scan_dir in scan_dirs:
         for path in scan_dir.glob("sess_*.json"):
-            with open(path) as f:
-                data = json.load(f)
+            try:
+                data = _safe_read_json(path)
+            except (json.JSONDecodeError, ValueError) as exc:
+                logger.warning("Skipping corrupt/invalid file %s: %s", path.name, exc)
+                continue
             data = _migrate_session_data(data)
             session = _session_from_dict(data)
 
@@ -714,8 +738,7 @@ def archive_session(session_id: str) -> bool:
         if not src.exists():
             return False
 
-        with open(src) as f:
-            data = json.load(f)
+        data = _safe_read_json(src)
 
         if data.get("status") != SessionStatus.COMPLETED:
             return False
@@ -747,8 +770,11 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
     affected_projects: set[str] = set()
 
     for path in SESSIONS_DIR.glob("sess_*.json"):
-        with open(path) as f:
-            data = json.load(f)
+        try:
+            data = _safe_read_json(path)
+        except (json.JSONDecodeError, ValueError) as exc:
+            logger.warning("Skipping corrupt/invalid file %s: %s", path.name, exc)
+            continue
 
         if data.get("status") != SessionStatus.COMPLETED:
             continue
@@ -779,8 +805,7 @@ def archive_old_sessions(days: int | None = None) -> list[str]:
             with _session_lock(sid):
                 if not path.exists():
                     continue
-                with open(path) as f:
-                    fresh = json.load(f)
+                fresh = _safe_read_json(path)
                 if fresh.get("status") != SessionStatus.COMPLETED:
                     continue
                 dst = ARCHIVE_DIR / f"{sid}.json"
@@ -805,8 +830,7 @@ def get_archived_session(session_id: str) -> Session | None:
     if not path.exists():
         return None
 
-    with open(path) as f:
-        data = json.load(f)
+    data = _safe_read_json(path)
 
     data = _migrate_session_data(data)
     return _session_from_dict(data)
@@ -818,12 +842,12 @@ def get_archived_session(session_id: str) -> Session | None:
 
 
 def get_project_state(project_slug: str) -> ProjectState | None:
+    validate_project_slug(project_slug)
     path = PROJECTS_DIR / f"{project_slug}.json"
     if not path.exists():
         return None
 
-    with open(path) as f:
-        data = json.load(f)
+    data = _safe_read_json(path)
 
     roadmap_data = data.get("roadmap_summary", {})
     roadmap = RoadmapSummary(
@@ -854,6 +878,7 @@ def update_project_state(
     roadmap_next_up: list[str] | None = None,
 ) -> ProjectState:
     """Update project state with roadmap info."""
+    validate_project_slug(project_slug)
     state = get_project_state(project_slug) or ProjectState(
         project_slug=project_slug
     )

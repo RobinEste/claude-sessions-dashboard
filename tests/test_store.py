@@ -781,3 +781,85 @@ class TestBuildOverview:
         assert proj["slug"] == "p"
         assert len(proj["active_sessions"]) == 1
         assert "task_summary" in proj["active_sessions"][0]
+
+
+# ---------------------------------------------------------------------------
+# Security hardening (C5)
+# ---------------------------------------------------------------------------
+
+
+class TestSafeReadJson:
+    """Test _safe_read_json: size limits, symlink rejection, corrupt JSON."""
+
+    def test_rejects_symlink(self, tmp_path):
+        real = tmp_path / "real.json"
+        real.write_text('{"ok": true}')
+        link = tmp_path / "link.json"
+        link.symlink_to(real)
+
+        with pytest.raises(ValueError, match="symlink"):
+            store._safe_read_json(link)
+
+    def test_rejects_oversized_file(self, tmp_path):
+        big = tmp_path / "big.json"
+        big.write_text("{" + " " * (store.MAX_JSON_FILE_SIZE + 1) + "}")
+
+        with pytest.raises(ValueError, match="too large"):
+            store._safe_read_json(big)
+
+    def test_raises_on_corrupt_json(self, tmp_path):
+        bad = tmp_path / "bad.json"
+        bad.write_text("not json at all {{{")
+
+        with pytest.raises(json.JSONDecodeError):
+            store._safe_read_json(bad)
+
+    def test_reads_valid_file(self, tmp_path):
+        good = tmp_path / "good.json"
+        good.write_text('{"hello": "world"}')
+        assert store._safe_read_json(good) == {"hello": "world"}
+
+
+class TestCorruptFileSkipping:
+    """list_sessions and archive_old_sessions skip corrupt files."""
+
+    def test_list_sessions_skips_corrupt(self, session_id):
+        # Create a corrupt session file alongside the valid one
+        corrupt = store.SESSIONS_DIR / "sess_20260101T0000_dead.json"
+        corrupt.write_text("NOT VALID JSON")
+
+        sessions = store.list_sessions()
+        assert len(sessions) == 1
+        assert sessions[0].session_id == session_id
+
+    def test_archive_old_sessions_skips_corrupt(self):
+        corrupt = store.SESSIONS_DIR / "sess_20260101T0000_dead.json"
+        corrupt.write_text("{{{bad")
+
+        # Should not crash — just skip the corrupt file
+        archived = store.archive_old_sessions(days=1)
+        assert archived == []
+
+
+class TestProjectSlugValidation:
+    """Project slug validated in all store functions that use it for paths."""
+
+    def test_get_project_state_rejects_traversal(self):
+        with pytest.raises(ValueError, match="Invalid project slug"):
+            store.get_project_state("../etc")
+
+    def test_update_project_state_rejects_traversal(self):
+        with pytest.raises(ValueError, match="Invalid project slug"):
+            store.update_project_state("../../evil")
+
+    def test_heartbeat_project_rejects_traversal(self):
+        with pytest.raises(ValueError, match="Invalid project slug"):
+            store.heartbeat_project("../../../etc")
+
+    def test_register_project_validates_slug(self):
+        with pytest.raises(ValueError, match="slug"):
+            store.register_project("Name", "/")
+
+    def test_register_project_accepts_valid_slug(self):
+        slug = store.register_project("MyProject", "/tmp/my-project")
+        assert slug == "my-project"
