@@ -10,15 +10,18 @@
 | KNW-2026-006 | Test isolation via monkeypatch van module-level paden | testing | hoog | 2026-02-25 |
 | KNW-2026-007 | GitHub Actions supply-chain hardening met SHA-pinning en permissions | infrastructure | hoog | 2026-02-25 |
 | KNW-2026-008 | StrEnum voor type-safe constanten in plaats van losse string sets | development | midden | 2026-02-25 |
+| KNW-2026-009 | O_NOFOLLOW voor atomaire symlink-weigering zonder TOCTOU | security | hoog | 2026-02-26 |
+| KNW-2026-010 | Error handlers mogen geen interne details naar clients lekken | security | hoog | 2026-02-26 |
+| KNW-2026-011 | Dedicated lock voor shared derived state (index-bestanden) | architectuur | hoog | 2026-02-26 |
 
 ## Statistieken
 
 | Categorie | Aantal |
 |-----------|--------|
-| architectuur | 2 |
+| architectuur | 3 |
 | development | 3 |
-| security | 1 |
+| security | 3 |
 | avg-privacy | 0 |
 | infrastructure | 1 |
 | testing | 1 |
-| **Totaal** | **8** |
+| **Totaal** | **11** |
