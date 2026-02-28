@@ -13,6 +13,7 @@ When you use Claude Code across multiple projects and terminal windows, it's eas
 - **Auto-cleanup** — stale sessions are automatically closed via a CLI command or launchd periodic job
 - **Concurrency safe** — all session mutations are protected by file-level locking (`fcntl.flock`)
 - **Project overview** — see all your projects, their current phase, and roadmap progress
+- **Export** — export sessions or entire projects as JSON or Markdown, via CLI, API, or download buttons in the dashboard
 - **Web dashboard** — dark-themed, auto-refreshing UI at `localhost:9000`
 - **Zero dependencies** — the core runs on Python stdlib only (web UI needs `fastapi` + `uvicorn`)
 
@@ -188,6 +189,15 @@ python3 ~/.claude/dashboard/manage.py update-project-state my-project \
   --in-progress "Dashboard UI" \
   --next-up "Testing" "Documentation" "Deploy"
 
+# Export a session as Markdown
+python3 ~/.claude/dashboard/manage.py export <session_id> --format markdown
+
+# Export all sessions for a project as JSON
+python3 ~/.claude/dashboard/manage.py export <project_slug> --format json
+
+# Export to file
+python3 ~/.claude/dashboard/manage.py export <session_id> --format markdown -o session.md
+
 # Full overview (used by web dashboard)
 python3 ~/.claude/dashboard/manage.py overview
 ```
@@ -223,9 +233,10 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 ├── config.json        # Project registry + settings (auto-created)
 ├── lib/
 │   ├── models.py      # Dataclasses (Session, ProjectState, etc.)
-│   └── store.py       # JSON file CRUD with atomic writes + file locking
+│   ├── store.py       # JSON file CRUD with atomic writes + file locking
+│   └── export.py      # Export formatting (JSON + Markdown, no I/O)
 ├── web/
-│   ├── app.py         # FastAPI server (3 routes)
+│   ├── app.py         # FastAPI server (5 routes)
 │   └── index.html     # Dashboard frontend (single HTML file)
 ├── sessions/          # Session JSON files (auto-created)
 └── projects/          # Project state JSON files (auto-created)

@@ -148,6 +148,68 @@ class TestStructuredErrors:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Export API routes (D4)
+# ---------------------------------------------------------------------------
+
+
+class TestApiExportSession:
+    def test_export_session_json(self, client):
+        s = store.create_session(project_slug="p", intent="Export test")
+        resp = client.get(f"/api/export/session/{s.session_id}?format=json")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["session_id"] == s.session_id
+        assert "task_summary" in data
+        assert "duration" in data
+
+    def test_export_session_markdown(self, client):
+        s = store.create_session(project_slug="p", intent="Export md test")
+        resp = client.get(f"/api/export/session/{s.session_id}?format=markdown")
+        assert resp.status_code == 200
+        assert "text/markdown" in resp.headers["content-type"]
+        assert "Content-Disposition" in resp.headers
+        assert s.session_id in resp.headers["Content-Disposition"]
+        assert "# Session: Export md test" in resp.text
+
+    def test_export_session_not_found(self, client):
+        resp = client.get("/api/export/session/sess_20000101T0000_0000?format=json")
+        assert resp.status_code == 404
+
+    def test_export_session_default_format_is_json(self, client):
+        s = store.create_session(project_slug="p", intent="Default fmt")
+        resp = client.get(f"/api/export/session/{s.session_id}")
+        assert resp.status_code == 200
+        assert "application/json" in resp.headers["content-type"]
+
+
+class TestApiExportProject:
+    def test_export_project_json(self, client):
+        store.create_session(project_slug="proj", intent="Session 1")
+        resp = client.get("/api/export/project/proj?format=json")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["project"] == "proj"
+        assert data["session_count"] >= 1
+
+    def test_export_project_markdown(self, client):
+        store.create_session(project_slug="proj", intent="Session 1")
+        resp = client.get("/api/export/project/proj?format=markdown")
+        assert resp.status_code == 200
+        assert "text/markdown" in resp.headers["content-type"]
+        assert "Content-Disposition" in resp.headers
+        assert "# Project: proj" in resp.text
+
+    def test_export_project_not_found(self, client):
+        resp = client.get("/api/export/project/nonexistent?format=json")
+        assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 404 for unknown routes
+# ---------------------------------------------------------------------------
+
+
 class TestUnknownRoutes:
     def test_unknown_route(self, client):
         resp = client.get("/nonexistent")

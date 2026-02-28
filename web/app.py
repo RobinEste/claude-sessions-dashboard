@@ -1,9 +1,11 @@
 """Web dashboard — read-only monitoring of Claude Code sessions.
 
 Routes:
-  GET /                       -> serves the HTML dashboard page
-  GET /api/overview           -> JSON data for polling (every 30s)
-  GET /api/session/{session_id} -> single session detail
+  GET /                                      -> serves the HTML dashboard page
+  GET /api/overview                          -> JSON data for polling (every 30s)
+  GET /api/session/{session_id}              -> single session detail
+  GET /api/export/session/{id}?format=       -> export session as JSON or Markdown
+  GET /api/export/project/{slug}?format=     -> export project sessions as JSON or Markdown
 
 All API errors return consistent JSON: {"error": "message", "code": "ERROR_CODE"}
 """
@@ -16,13 +18,14 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 # Ensure lib is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from lib import store
+from lib import export, store
+from lib.validation import validate_project_slug
 
 logger = logging.getLogger(__name__)
 
@@ -84,3 +87,57 @@ def api_session_detail(session_id: str):
     if not session:
         return _error_response("Session not found", "NOT_FOUND", 404)
     return JSONResponse(asdict(session))
+
+
+# ---------------------------------------------------------------------------
+# Export routes (D4)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/export/session/{session_id}")
+def api_export_session(
+    session_id: str,
+    format: str = Query("json", pattern="^(json|markdown)$"),
+):
+    session = store.get_session(session_id)
+    if not session:
+        return _error_response("Session not found", "NOT_FOUND", 404)
+
+    if format == "markdown":
+        content = export.export_session_markdown(session)
+        filename = f"{session_id}.md"
+        return PlainTextResponse(
+            content,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    return JSONResponse(export.export_session_json(session))
+
+
+@app.get("/api/export/project/{slug}")
+def api_export_project(
+    slug: str,
+    format: str = Query("json", pattern="^(json|markdown)$"),
+    include_archived: bool = Query(False),
+    limit: int = Query(100, ge=1, le=500),
+):
+    validate_project_slug(slug)
+    sessions = store.list_sessions(
+        project_slug=slug, include_archived=include_archived,
+    )
+    if not sessions:
+        return _error_response("No sessions found for project", "NOT_FOUND", 404)
+
+    sessions = sessions[:limit]
+
+    if format == "markdown":
+        content = export.export_project_markdown(slug, sessions)
+        filename = f"{slug}-sessions.md"
+        return PlainTextResponse(
+            content,
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    return JSONResponse(export.export_project_json(slug, sessions))

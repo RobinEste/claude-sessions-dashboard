@@ -20,7 +20,7 @@ from pathlib import Path
 # Add parent dir to path so `from lib import ...` works
 sys.path.insert(0, str(Path(__file__).parent))
 
-from lib import store
+from lib import export, store
 from lib.models import SessionStatus
 
 
@@ -154,6 +154,20 @@ def main() -> None:
     p.add_argument("--in-progress", nargs="*", help="In-progress roadmap items")
     p.add_argument("--next-up", nargs="*", help="Next 3 roadmap items")
 
+    # --- Export ---
+    p = sub.add_parser("export", help="Export session or project as JSON/Markdown")
+    p.add_argument("target", help="Session ID (sess_...) or project slug")
+    p.add_argument(
+        "--format", choices=["json", "markdown"], default="json",
+        dest="export_format",
+        help="Output format (default: json)",
+    )
+    p.add_argument("--output", "-o", help="Write to file instead of stdout")
+    p.add_argument(
+        "--include-archived", action="store_true",
+        help="Include archived sessions (project export only)",
+    )
+
     # --- Index management ---
     sub.add_parser("rebuild-index", help="Rebuild session index from files")
 
@@ -175,7 +189,10 @@ def main() -> None:
         result = _dispatch(args)
     except ValueError as e:
         result = {"error": str(e)}
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    if isinstance(result, str):
+        print(result)
+    else:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 def _dispatch(args: argparse.Namespace) -> dict | list:
@@ -351,6 +368,9 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         )
         return asdict(state)
 
+    if cmd == "export":
+        return _handle_export(args)
+
     if cmd == "rebuild-index":
         index = store.rebuild_index()
         return {"status": "rebuilt", "entries": len(index)}
@@ -363,6 +383,46 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
         return {}  # never reached — uvicorn runs until interrupted
 
     return {"error": f"Unknown command: {cmd}"}
+
+
+def _handle_export(args: argparse.Namespace) -> dict | str:
+    """Handle export command: detect session vs project, format output."""
+    target = args.target
+    fmt = args.export_format
+
+    if target.startswith("sess_"):
+        # Session export
+        session = store.get_session(target)
+        if not session:
+            return {"error": f"Session not found: {target}"}
+        if fmt == "markdown":
+            result = export.export_session_markdown(session)
+        else:
+            result = export.export_session_json(session)
+    else:
+        # Project export
+        sessions = store.list_sessions(
+            project_slug=target,
+            include_archived=args.include_archived,
+        )
+        if not sessions:
+            return {"error": f"No sessions found for project: {target}"}
+        if fmt == "markdown":
+            result = export.export_project_markdown(target, sessions)
+        else:
+            result = export.export_project_json(target, sessions)
+
+    # Write to file if --output specified
+    if args.output:
+        with open(args.output, "w") as f:
+            if isinstance(result, str):
+                f.write(result)
+            else:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+        return {"status": "exported", "file": args.output}
+
+    return result
 
 
 def _capture_commits(session_id: str, repo_path: str) -> dict:

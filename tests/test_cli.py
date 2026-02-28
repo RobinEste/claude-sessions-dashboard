@@ -378,6 +378,76 @@ class TestCLISubprocess:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Export commands (D4)
+# ---------------------------------------------------------------------------
+
+
+class TestExportCommands:
+    def test_export_session_json(self, session_id):
+        result = _dispatch(ns(
+            command="export", target=session_id,
+            export_format="json", output=None, include_archived=False,
+        ))
+        assert result["session_id"] == session_id
+        assert "task_summary" in result
+        assert "duration" in result
+
+    def test_export_session_markdown(self, session_id):
+        result = _dispatch(ns(
+            command="export", target=session_id,
+            export_format="markdown", output=None, include_archived=False,
+        ))
+        assert isinstance(result, str)
+        assert "# Session:" in result
+        assert "CLI test" in result
+
+    def test_export_session_not_found(self):
+        result = _dispatch(ns(
+            command="export", target="sess_20000101T0000_0000",
+            export_format="json", output=None, include_archived=False,
+        ))
+        assert "error" in result
+
+    def test_export_project_json(self, project_slug, session_id):
+        result = _dispatch(ns(
+            command="export", target=project_slug,
+            export_format="json", output=None, include_archived=False,
+        ))
+        assert result["project"] == project_slug
+        assert result["session_count"] >= 1
+
+    def test_export_project_markdown(self, project_slug, session_id):
+        result = _dispatch(ns(
+            command="export", target=project_slug,
+            export_format="markdown", output=None, include_archived=False,
+        ))
+        assert isinstance(result, str)
+        assert "# Project:" in result
+
+    def test_export_project_not_found(self):
+        result = _dispatch(ns(
+            command="export", target="nonexistent",
+            export_format="json", output=None, include_archived=False,
+        ))
+        assert "error" in result
+
+    def test_export_to_file(self, session_id, tmp_path):
+        outfile = str(tmp_path / "export.md")
+        result = _dispatch(ns(
+            command="export", target=session_id,
+            export_format="markdown", output=outfile, include_archived=False,
+        ))
+        assert result["status"] == "exported"
+        content = Path(outfile).read_text()
+        assert "# Session:" in content
+
+
+# ---------------------------------------------------------------------------
+# rebuild-index (D1)
+# ---------------------------------------------------------------------------
+
+
 class TestRebuildIndex:
     def test_rebuild_index_command(self):
         store.create_session(project_slug="test", intent="Session 1")

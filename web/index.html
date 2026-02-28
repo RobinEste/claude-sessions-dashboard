@@ -420,6 +420,31 @@
     border-color: var(--accent-blue);
   }
 
+  .detail-export-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .export-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .export-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+    border-color: var(--accent-blue);
+  }
+
   .detail-view-header {
     margin-bottom: 20px;
   }
@@ -900,6 +925,13 @@ function renderDetailView() {
   else if (s._is_stale) dotClass = 'dot-stale';
 
   let html = '<button class="detail-back" onclick="closeDetail()">&larr; Back to sessions</button>';
+
+  // Export buttons
+  const exportBase = '/api/export/session/' + encodeURIComponent(s.session_id);
+  html += '<div class="detail-export-bar">';
+  html += '<a class="export-btn" href="' + exportBase + '?format=markdown" download>Export Markdown</a>';
+  html += '<a class="export-btn" href="' + exportBase + '?format=json" target="_blank">Export JSON</a>';
+  html += '</div>';
 
   // Header
   html += '<div class="detail-view-header">';
