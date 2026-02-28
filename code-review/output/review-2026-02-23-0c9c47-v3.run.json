@@ -1,0 +1,47 @@
+{
+  "review_id": "review-2026-02-23-0c9c47-v3",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "0c9c471",
+  "trigger": "manual",
+  "started_at": "2026-02-23T14:00:00Z",
+  "ended_at": "2026-02-23T14:30:00Z",
+  "agents_used": [
+    "security-sentinel",
+    "avg-privacy-guardian",
+    "logic-correctness",
+    "async-data-integrity",
+    "convention-checker",
+    "duplication-checker",
+    "python-specialist"
+  ],
+  "gates": {
+    "lint": "skipped",
+    "types": "skipped",
+    "tests": "skipped",
+    "security": "pass",
+    "contract": "skipped",
+    "performance": "skipped",
+    "smoke": "skipped",
+    "dast": "skipped",
+    "sbom": "skipped"
+  },
+  "stats": {
+    "findings_total": 6,
+    "findings_by_severity": {
+      "P0": 0,
+      "P1": 3,
+      "P2": 3,
+      "P3": 0
+    },
+    "false_positive_rate": 0.0,
+    "regression_pass_rate": 0.0
+  },
+  "verdict": "fail",
+  "verdict_reason": "Drie HIGH bevindingen betreffen ontbrekende file-locking op session-muterende functies (update_session, complete_session, park_session) en een crash bij niet-bestaande sessie in update_task.",
+  "artifacts": {
+    "findings_ndjson": "code-review/output/review-2026-02-23-0c9c47-v3.ndjson",
+    "run_json": "code-review/output/review-2026-02-23-0c9c47-v3.run.json",
+    "summary_md": "code-review/output/review-2026-02-23-0c9c47-v3.md"
+  }
+}

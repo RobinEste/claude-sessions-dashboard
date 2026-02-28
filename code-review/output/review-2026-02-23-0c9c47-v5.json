@@ -1,0 +1,34 @@
+{
+  "review_id": "review-2026-02-23-0c9c47-v5",
+  "created_at": "2026-02-23T16:00:00Z",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "0c9c471",
+  "filtered_findings": [
+    {
+      "id": "PYT-001",
+      "file": "lib/store.py",
+      "line_start": 72,
+      "line_end": 83,
+      "severity": "medium",
+      "confidence": 0.9,
+      "category": "error_handling",
+      "source_agent": "python-specialist",
+      "title": "Lock file niet verwijderd na gebruik — lock files accumuleren op schijf",
+      "body": "De _session_lock context manager opent een lock file maar verwijdert deze nooit. Over tijd stapelen deze bestanden zich op.",
+      "suggestion": "Voeg lock_path.unlink(missing_ok=True) toe in het finally blok.",
+      "requires_human_review": false
+    }
+  ],
+  "filter_stats": {
+    "received": 9,
+    "hard_excluded": 1,
+    "duplicates_merged": 0,
+    "confidence_filtered": 4,
+    "score_filtered": 3,
+    "max_capped": 0,
+    "final_count": 1
+  },
+  "verdict": "approve",
+  "verdict_rationale": "Eén MEDIUM bevinding over lock file accumulatie — suggestie ter overweging, niet blokkerend"
+}

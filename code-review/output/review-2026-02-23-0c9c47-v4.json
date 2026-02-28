@@ -1,0 +1,48 @@
+{
+  "review_id": "review-2026-02-23-0c9c47-v4",
+  "created_at": "2026-02-23T15:00:00Z",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "0c9c471",
+  "filtered_findings": [
+    {
+      "id": "ASD-001",
+      "file": "lib/store.py",
+      "line_start": 447,
+      "line_end": 471,
+      "severity": "high",
+      "confidence": 0.9,
+      "category": "race_condition",
+      "source_agent": "async-data-integrity",
+      "title": "resume_session mist _session_lock — TOCTOU race bij concurrent resume",
+      "body": "De concurrency hardening voegt _session_lock toe aan alle session-mutating functies, maar resume_session is overgeslagen. Deze functie doet een read-modify-write op twee sessies zonder lock.",
+      "suggestion": "Wrap de volledige resume_session in _session_lock(session_id) zodat de read-check-create-write cyclus atomair is.",
+      "requires_human_review": true
+    },
+    {
+      "id": "LOG-001",
+      "file": "lib/store.py",
+      "line_start": 367,
+      "line_end": 391,
+      "severity": "medium",
+      "confidence": 0.9,
+      "category": "edge_case",
+      "source_agent": "logic-correctness",
+      "title": "update_task subject-rename breekt dedup-invariant van add_tasks",
+      "body": "update_task controleert niet of een nieuw subject al bestaat bij een andere task. add_tasks dedupliceert op subject, maar update_task omzeilt die check.",
+      "suggestion": "Voeg een dedup-check toe in update_task voordat het subject wordt overschreven.",
+      "requires_human_review": false
+    }
+  ],
+  "filter_stats": {
+    "received": 8,
+    "hard_excluded": 1,
+    "duplicates_merged": 0,
+    "confidence_filtered": 2,
+    "score_filtered": 3,
+    "max_capped": 0,
+    "final_count": 2
+  },
+  "verdict": "changes_requested",
+  "verdict_rationale": "Een HIGH race condition bevinding in resume_session vereist aanpassing voor merge"
+}

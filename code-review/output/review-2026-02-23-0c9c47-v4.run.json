@@ -1,0 +1,47 @@
+{
+  "review_id": "review-2026-02-23-0c9c47-v4",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "0c9c471",
+  "trigger": "manual",
+  "started_at": "2026-02-23T15:00:00Z",
+  "ended_at": "2026-02-23T15:20:00Z",
+  "agents_used": [
+    "security-sentinel",
+    "avg-privacy-guardian",
+    "logic-correctness",
+    "async-data-integrity",
+    "convention-checker",
+    "duplication-checker",
+    "python-specialist"
+  ],
+  "gates": {
+    "lint": "skipped",
+    "types": "skipped",
+    "tests": "skipped",
+    "security": "pass",
+    "contract": "skipped",
+    "performance": "skipped",
+    "smoke": "skipped",
+    "dast": "skipped",
+    "sbom": "skipped"
+  },
+  "stats": {
+    "findings_total": 2,
+    "findings_by_severity": {
+      "P0": 0,
+      "P1": 1,
+      "P2": 1,
+      "P3": 0
+    },
+    "false_positive_rate": 0.0,
+    "regression_pass_rate": 0.0
+  },
+  "verdict": "fail",
+  "verdict_reason": "Een HIGH race condition bevinding in resume_session vereist aanpassing voor merge.",
+  "artifacts": {
+    "findings_ndjson": "code-review/output/review-2026-02-23-0c9c47-v4.ndjson",
+    "run_json": "code-review/output/review-2026-02-23-0c9c47-v4.run.json",
+    "summary_md": "code-review/output/review-2026-02-23-0c9c47-v4.md"
+  }
+}

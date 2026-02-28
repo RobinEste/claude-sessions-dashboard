@@ -1,0 +1,52 @@
+{
+  "review_id": "review-2026-02-25-31880e",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "31880e1",
+  "filtered_findings": [
+    {
+      "id": "INF-001",
+      "file": ".github/workflows/ci.yml",
+      "line_start": 13,
+      "line_end": 16,
+      "severity": "high",
+      "confidence": 0.95,
+      "category": "actions_security",
+      "source_agent": "infrastructure-reviewer",
+      "title": "Pin GitHub Actions op volledige SHA-hash in plaats van tag",
+      "body": "actions/checkout@v4 en actions/setup-python@v5 gebruiken mutable tags. Een gecompromitteerde of overschreven tag kan kwaadaardige code injecteren in de CI pipeline. Pin actions op hun volledige commit SHA om supply-chain aanvallen te voorkomen.",
+      "suggestion": "actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.7\nactions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0",
+      "requires_human_review": true,
+      "filter_score": 10,
+      "resolved": true
+    },
+    {
+      "id": "INF-002",
+      "file": ".github/workflows/ci.yml",
+      "line_start": 1,
+      "line_end": 8,
+      "severity": "high",
+      "confidence": 0.92,
+      "category": "actions_security",
+      "source_agent": "infrastructure-reviewer",
+      "title": "Voeg minimale permissions toe aan workflow",
+      "body": "Het workflow-bestand definieert geen permissions block. GitHub Actions geeft standaard een GITHUB_TOKEN met brede rechten. Stel expliciet minimale permissions in op workflow-niveau.",
+      "suggestion": "permissions:\n  contents: read",
+      "requires_human_review": true,
+      "filter_score": 10,
+      "resolved": true
+    }
+  ],
+  "filter_stats": {
+    "received": 4,
+    "hard_excluded": 1,
+    "duplicates_merged": 0,
+    "confidence_filtered": 0,
+    "score_filtered": 1,
+    "max_capped": 0,
+    "final_count": 2
+  },
+  "verdict": "changes_requested",
+  "verdict_rationale": "Twee HIGH security bevindingen in de nieuwe CI workflow vereisen aanpassing: ontbrekende SHA-pinning en ontbrekend permissions block. Beide zijn gefixt.",
+  "risk_score": 40
+}

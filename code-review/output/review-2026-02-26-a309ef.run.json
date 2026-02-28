@@ -1,0 +1,44 @@
+{
+  "review_id": "review-2026-02-26-a309ef",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "a309ef6",
+  "trigger": "manual",
+  "started_at": "2026-02-26T12:00:00+01:00",
+  "ended_at": "2026-02-26T12:30:00+01:00",
+  "agents_used": [
+    "security-sentinel", "logic-correctness", "async-data-integrity",
+    "python-specialist", "performance-reviewer", "convention-checker",
+    "duplication-checker", "dead-code-detector"
+  ],
+  "gates": {
+    "lint": "skipped",
+    "types": "skipped",
+    "tests": "skipped",
+    "security": "pass",
+    "contract": "skipped",
+    "performance": "skipped",
+    "smoke": "skipped",
+    "dast": "skipped",
+    "sbom": "skipped"
+  },
+  "stats": {
+    "findings_total": 7,
+    "findings_by_severity": {
+      "P0": 1,
+      "P1": 2,
+      "P2": 4,
+      "P3": 0
+    },
+    "false_positive_rate": 0.0,
+    "regression_pass_rate": 0.0,
+    "risk_score": 100
+  },
+  "verdict": "fail",
+  "verdict_reason": "1 CRITICAL + 2 HIGH bevindingen vereisten aanpassing",
+  "artifacts": {
+    "findings_ndjson": "code-review/output/review-2026-02-26-a309ef.ndjson",
+    "run_json": "code-review/output/review-2026-02-26-a309ef.run.json",
+    "summary_md": "code-review/output/review-2026-02-26-a309ef.md"
+  }
+}
