@@ -13,15 +13,19 @@
 | KNW-2026-009 | O_NOFOLLOW voor atomaire symlink-weigering zonder TOCTOU | security | hoog | 2026-02-26 |
 | KNW-2026-010 | Error handlers mogen geen interne details naar clients lekken | security | hoog | 2026-02-26 |
 | KNW-2026-011 | Dedicated lock voor shared derived state (index-bestanden) | architectuur | hoog | 2026-02-26 |
+| KNW-2026-012 | User input in HTTP headers sanitiseren tegen header injection | security | hoog | 2026-02-28 |
+| KNW-2026-013 | Parameters voor composability in plaats van post-hoc string manipulatie | architectuur | midden | 2026-02-28 |
+| KNW-2026-014 | CLI en API feature parity — parameters synchroon houden | development | midden | 2026-02-28 |
+| KNW-2026-015 | Altijd een limiet op collection endpoints om memory exhaustion te voorkomen | architectuur | hoog | 2026-02-28 |
 
 ## Statistieken
 
 | Categorie | Aantal |
 |-----------|--------|
-| architectuur | 3 |
-| development | 3 |
-| security | 3 |
+| architectuur | 5 |
+| development | 4 |
+| security | 4 |
 | avg-privacy | 0 |
 | infrastructure | 1 |
 | testing | 1 |
-| **Totaal** | **11** |
+| **Totaal** | **15** |
