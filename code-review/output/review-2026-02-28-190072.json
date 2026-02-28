@@ -1,0 +1,40 @@
+{
+  "review_id": "review-2026-02-28-190072",
+  "created_at": "2026-02-28T15:00:00Z",
+  "diff_target": "git diff HEAD~1",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "1900722",
+  "filtered_findings": [
+    {
+      "id": "LOG-001",
+      "file": "lib/notify.py",
+      "line_start": 185,
+      "line_end": 190,
+      "severity": "medium",
+      "confidence": 0.85,
+      "category": "error_handling",
+      "source_agent": "logic-correctness",
+      "title": "Cooldown start bij mislukte notificatie blokkeert volgende pogingen",
+      "body": "In check_and_notify() wordt state[session.session_id] altijd bijgewerkt met een nieuw notified_at timestamp, ongeacht of _send_notification() True of False retourneert. Op een niet-macOS platform retourneert _send_notification() altijd False, maar de cooldown wordt toch geactiveerd. Fix: verplaats de state-update naar binnen het 'if sent:' blok.",
+      "suggestion": "State-update alleen bij succesvolle notificatie",
+      "requires_human_review": false,
+      "filter_score": 8,
+      "filter_rationale": "Logica-fout in nieuwe code: cooldown wordt geactiveerd bij gefaalde notificaties.",
+      "solution_ref": null,
+      "resolved": true
+    }
+  ],
+  "filter_stats": {
+    "received": 6,
+    "hard_excluded": 2,
+    "duplicates_merged": 0,
+    "confidence_filtered": 3,
+    "score_filtered": 0,
+    "max_capped": 0,
+    "final_count": 1
+  },
+  "verdict": "approve",
+  "verdict_rationale": "Suggesties ter overweging, niet blokkerend",
+  "risk_score": 5
+}

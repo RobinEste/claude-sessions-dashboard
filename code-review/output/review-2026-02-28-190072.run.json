@@ -1,0 +1,50 @@
+{
+  "review_id": "review-2026-02-28-190072",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "1900722",
+  "trigger": "manual",
+  "started_at": "2026-02-28T15:00:00Z",
+  "ended_at": "2026-02-28T15:10:00Z",
+  "agents_used": [
+    "security-sentinel",
+    "avg-privacy-guardian",
+    "logic-correctness",
+    "async-data-integrity",
+    "convention-checker",
+    "duplication-checker",
+    "python-specialist",
+    "dead-code-detector",
+    "performance-reviewer"
+  ],
+  "gates": {
+    "lint": "skipped",
+    "types": "skipped",
+    "tests": "skipped",
+    "security": "pass",
+    "contract": "skipped",
+    "performance": "skipped",
+    "smoke": "skipped",
+    "dast": "skipped",
+    "sbom": "skipped"
+  },
+  "stats": {
+    "findings_total": 1,
+    "findings_by_severity": {
+      "P0": 0,
+      "P1": 0,
+      "P2": 1,
+      "P3": 0
+    },
+    "false_positive_rate": 0.0,
+    "regression_pass_rate": 0.0,
+    "risk_score": 5
+  },
+  "verdict": "warn",
+  "verdict_reason": "Suggesties ter overweging, niet blokkerend",
+  "artifacts": {
+    "findings_ndjson": "code-review/output/review-2026-02-28-190072.ndjson",
+    "run_json": "code-review/output/review-2026-02-28-190072.run.json",
+    "summary_md": "code-review/output/review-2026-02-28-190072.md"
+  }
+}

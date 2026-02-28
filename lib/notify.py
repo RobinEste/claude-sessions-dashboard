@@ -184,10 +184,10 @@ def check_and_notify() -> dict:
             )
             if sent:
                 stale_notified += 1
-            state[session.session_id] = {
-                "reason": "stale",
-                "notified_at": datetime.now(UTC).isoformat(),
-            }
+                state[session.session_id] = {
+                    "reason": "stale",
+                    "notified_at": datetime.now(UTC).isoformat(),
+                }
 
     # Check long-parked sessions
     parked_sessions = get_long_parked_sessions()
@@ -201,10 +201,10 @@ def check_and_notify() -> dict:
             )
             if sent:
                 parked_notified += 1
-            state[session.session_id] = {
-                "reason": "parked",
-                "notified_at": datetime.now(UTC).isoformat(),
-            }
+                state[session.session_id] = {
+                    "reason": "parked",
+                    "notified_at": datetime.now(UTC).isoformat(),
+                }
 
     # Cleanup: remove entries for sessions no longer stale/parked
     active_ids = stale_ids | parked_ids
