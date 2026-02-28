@@ -17,15 +17,16 @@
 | KNW-2026-013 | Parameters voor composability in plaats van post-hoc string manipulatie | architectuur | midden | 2026-02-28 |
 | KNW-2026-014 | CLI en API feature parity — parameters synchroon houden | development | midden | 2026-02-28 |
 | KNW-2026-015 | Altijd een limiet op collection endpoints om memory exhaustion te voorkomen | architectuur | hoog | 2026-02-28 |
+| KNW-2026-016 | State-update alleen bij succesvolle actie — geen cooldown zonder effect | development | hoog | 2026-02-28 |
 
 ## Statistieken
 
 | Categorie | Aantal |
 |-----------|--------|
 | architectuur | 5 |
-| development | 4 |
+| development | 5 |
 | security | 4 |
 | avg-privacy | 0 |
 | infrastructure | 1 |
 | testing | 1 |
-| **Totaal** | **15** |
+| **Totaal** | **16** |
