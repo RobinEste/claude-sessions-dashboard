@@ -86,6 +86,9 @@ class DashboardSettings:
     dashboard_port: int = 9000
     stale_threshold_hours: int = 24
     archive_after_days: int = 30
+    notifications_enabled: bool = False
+    parked_notify_hours: int = 48
+    notify_cooldown_hours: int = 12
 
 
 @dataclass

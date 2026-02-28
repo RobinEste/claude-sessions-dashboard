@@ -448,6 +448,27 @@ class TestExportCommands:
 # ---------------------------------------------------------------------------
 
 
+class TestCheckNotify:
+    def test_disabled_by_default(self):
+        result = _dispatch(ns(command="check-notify"))
+        assert result["status"] == "disabled"
+        assert result["stale_notified"] == 0
+        assert result["parked_notified"] == 0
+
+    def test_enabled_returns_checked(self):
+        config = store.load_config()
+        config.settings.notifications_enabled = True
+        store.save_config(config)
+
+        result = _dispatch(ns(command="check-notify"))
+        assert result["status"] == "checked"
+
+
+# ---------------------------------------------------------------------------
+# rebuild-index (D1)
+# ---------------------------------------------------------------------------
+
+
 class TestRebuildIndex:
     def test_rebuild_index_command(self):
         store.create_session(project_slug="test", intent="Session 1")

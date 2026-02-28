@@ -168,6 +168,9 @@ def main() -> None:
         help="Include archived sessions (project export only)",
     )
 
+    # --- Notifications ---
+    sub.add_parser("check-notify", help="Check for stale/parked sessions and send notifications")
+
     # --- Index management ---
     sub.add_parser("rebuild-index", help="Rebuild session index from files")
 
@@ -370,6 +373,11 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
 
     if cmd == "export":
         return _handle_export(args)
+
+    if cmd == "check-notify":
+        from lib.notify import check_and_notify
+
+        return check_and_notify()
 
     if cmd == "rebuild-index":
         index = store.rebuild_index()
