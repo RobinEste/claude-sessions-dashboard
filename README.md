@@ -14,6 +14,7 @@ When you use Claude Code across multiple projects and terminal windows, it's eas
 - **Concurrency safe** — all session mutations are protected by file-level locking (`fcntl.flock`)
 - **Project overview** — see all your projects, their current phase, and roadmap progress
 - **Export** — export sessions or entire projects as JSON or Markdown, via CLI, API, or download buttons in the dashboard
+- **Desktop notifications** — optional macOS notifications when sessions go stale or parked sessions wait too long (opt-in, runs via launchd)
 - **Web dashboard** — dark-themed, auto-refreshing UI at `localhost:9000`
 - **Zero dependencies** — the core runs on Python stdlib only (web UI needs `fastapi` + `uvicorn`)
 
@@ -130,6 +131,36 @@ This runs `manage.py cleanup-stale` every hour. You can also run it manually:
 python3 ~/.claude/dashboard/manage.py cleanup-stale
 ```
 
+### 6. Desktop notifications for stale sessions (macOS, optional)
+
+Get notified when sessions go stale or parked sessions wait too long:
+
+```bash
+# Enable notifications in config
+python3 -c "
+import json, pathlib
+p = pathlib.Path.home() / '.claude/dashboard/config.json'
+c = json.loads(p.read_text())
+c['settings']['notifications_enabled'] = True
+p.write_text(json.dumps(c, indent=2))
+"
+
+# Copy the notify plist
+cp examples/launchd/com.claude.sessions-notify.plist ~/Library/LaunchAgents/
+
+# Edit: replace YOUR_USERNAME and python3 path
+nano ~/Library/LaunchAgents/com.claude.sessions-notify.plist
+
+# Load
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.claude.sessions-notify.plist
+```
+
+This runs `manage.py check-notify` every 30 minutes. Notifications have a configurable cooldown (default: 12h) to avoid spam. You can also run it manually:
+
+```bash
+python3 ~/.claude/dashboard/manage.py check-notify
+```
+
 ## Usage
 
 ### CLI
@@ -234,7 +265,8 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 ├── lib/
 │   ├── models.py      # Dataclasses (Session, ProjectState, etc.)
 │   ├── store.py       # JSON file CRUD with atomic writes + file locking
-│   └── export.py      # Export formatting (JSON + Markdown, no I/O)
+│   ├── export.py      # Export formatting (JSON + Markdown, no I/O)
+│   └── notify.py      # Desktop notifications for stale/parked sessions
 ├── web/
 │   ├── app.py         # FastAPI server (5 routes)
 │   └── index.html     # Dashboard frontend (single HTML file)
