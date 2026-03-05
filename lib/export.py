@@ -2,6 +2,8 @@
 
 Formatting-only module — no file I/O, no external dependencies.
 All functions accept model objects and return dicts or strings.
+
+Session export for /recall uses YAML frontmatter (schema_version: 1).
 """
 
 from __future__ import annotations
@@ -184,6 +186,123 @@ def export_session_markdown(
         lines.append("")
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Session export for /recall (with YAML frontmatter)
+# ---------------------------------------------------------------------------
+
+
+def export_session_recall_markdown(
+    session: Session,
+    conversation_highlights: str = "",
+    transcript_pct: int = 0,
+) -> str:
+    """Export a session as Markdown with YAML frontmatter for /recall indexing.
+
+    Uses schema_version 1 format with frontmatter metadata.
+    """
+    lines: list[str] = []
+
+    # YAML frontmatter
+    lines.append("---")
+    lines.append("schema_version: 1")
+    lines.append(f"session_id: {session.session_id}")
+    lines.append(f"project_slug: {session.project_slug}")
+    lines.append(f"started_at: {session.started_at or ''}")
+    lines.append(f"ended_at: {session.ended_at or ''}")
+    lines.append(f'intent: "{_yaml_escape(session.intent)}"')
+    lines.append(f"status: {session.status}")
+    lines.append("---")
+    lines.append("")
+
+    # Title
+    lines.append(f"# Session: {session.intent}")
+    lines.append("")
+
+    # Metadata table
+    lines.append("## Metadata")
+    lines.append("| Field | Value |")
+    lines.append("|-------|-------|")
+    lines.append(f"| Session ID | `{session.session_id}` |")
+    lines.append(f"| Project | {session.project_slug} |")
+    lines.append(f"| Status | {session.status} |")
+    lines.append(f"| Branch | `{session.git_branch}` |")
+    if session.started_at:
+        lines.append(f"| Started | {_format_iso_short(session.started_at)} |")
+    if session.ended_at:
+        lines.append(f"| Ended | {_format_iso_short(session.ended_at)} |")
+    duration = _format_duration(session.started_at, session.ended_at)
+    if duration:
+        lines.append(f"| Duration | {duration} |")
+    if session.roadmap_ref:
+        lines.append(f"| Roadmap ref | {session.roadmap_ref} |")
+    lines.append("")
+
+    # Outcome
+    if session.outcome:
+        lines.append("## Outcome")
+        lines.append("")
+        lines.append(session.outcome)
+        lines.append("")
+
+    if session.parked_reason:
+        lines.append("## Parked reason")
+        lines.append("")
+        lines.append(session.parked_reason)
+        lines.append("")
+
+    # Decisions
+    if session.decisions:
+        lines.append("## Decisions")
+        lines.append("")
+        for decision in session.decisions:
+            lines.append(f"- {decision}")
+        lines.append("")
+
+    # Commits
+    if session.commits:
+        lines.append("## Commits")
+        lines.append("")
+        for commit in session.commits:
+            sha = commit.get("sha", "")[:7]
+            msg = commit.get("message", "")
+            lines.append(f"- `{sha}` {msg}")
+        lines.append("")
+
+    # Events
+    if session.events:
+        lines.append("## Events")
+        lines.append("")
+        for event in session.events:
+            ts = _format_iso_short(event.get("timestamp"))
+            msg = event.get("message", "")
+            lines.append(f"- **{ts}** — {msg}")
+        lines.append("")
+
+    # Conversation Highlights (from transcript)
+    if conversation_highlights:
+        lines.append("## Conversation Highlights")
+        if transcript_pct > 0:
+            lines.append(f"_(~{transcript_pct}% van transcript)_")
+        lines.append("")
+        lines.append(conversation_highlights)
+        lines.append("")
+
+    # Next steps
+    if session.next_steps:
+        lines.append("## Next steps")
+        lines.append("")
+        for step in session.next_steps:
+            lines.append(f"- {step}")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+def _yaml_escape(s: str) -> str:
+    """Escape a string for use in YAML double-quoted context."""
+    return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
 # ---------------------------------------------------------------------------

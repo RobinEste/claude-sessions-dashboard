@@ -168,6 +168,22 @@ def main() -> None:
         help="Include archived sessions (project export only)",
     )
 
+    # --- Export-all (session recall) ---
+    p = sub.add_parser("export-all", help="Export sessions as Markdown for /recall")
+    p.add_argument(
+        "--output-dir", default=str(Path.home() / ".claude" / "session-exports"),
+        help="Output directory (default: ~/.claude/session-exports/)",
+    )
+    p.add_argument("--project", help="Only export sessions for this project slug")
+    p.add_argument("--since", help="Only export sessions started after this ISO date")
+    p.add_argument("--force", action="store_true", help="Overwrite existing exports")
+
+    # --- Search (for /recall) ---
+    p = sub.add_parser("search", help="Search session exports via TF-IDF")
+    p.add_argument("query", help="Search query")
+    p.add_argument("--project", help="Filter by project slug")
+    p.add_argument("--limit", type=int, default=5, help="Max results (default: 5, max: 10)")
+
     # --- Notifications ---
     sub.add_parser("check-notify", help="Check for stale/parked sessions and send notifications")
 
@@ -374,6 +390,12 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
     if cmd == "export":
         return _handle_export(args)
 
+    if cmd == "export-all":
+        return _handle_export_all(args)
+
+    if cmd == "search":
+        return _handle_search(args)
+
     if cmd == "check-notify":
         from lib.notify import check_and_notify
 
@@ -431,6 +453,250 @@ def _handle_export(args: argparse.Namespace) -> dict | str:
         return {"status": "exported", "file": args.output}
 
     return result
+
+
+def _handle_search(args: argparse.Namespace) -> dict:
+    """Search session exports using TF-IDF index."""
+    import time
+
+    from lib.search import SearchIndex
+
+    limit = min(args.limit, 10)
+    start_time = time.monotonic()
+
+    index = SearchIndex()
+    doc_count = index.build()
+    results = index.search(args.query, project=args.project, limit=limit)
+
+    elapsed = round(time.monotonic() - start_time, 2)
+
+    # Count unique projects from index data (avoids redundant filesystem scan)
+    project_slugs = {
+        doc["metadata"]["project_slug"]
+        for doc in index._docs.values()
+        if doc.get("metadata", {}).get("project_slug")
+    }
+
+    return {
+        "query": args.query,
+        "results": results,
+        "total_results": len(results),
+        "indexed_sessions": doc_count,
+        "indexed_projects": len(project_slugs),
+        "elapsed_seconds": elapsed,
+    }
+
+
+def _handle_export_all(args: argparse.Namespace) -> dict:
+    """Export sessions as Markdown with YAML frontmatter for /recall indexing."""
+    import logging
+    import os
+    import re
+
+    from lib.jsonl_reader import (
+        JSONLReader,
+        find_jsonl_for_session,
+        redact_pii,
+        redact_secrets,
+        trim_turns,
+    )
+
+    logger = logging.getLogger(__name__)
+    output_dir = Path(args.output_dir).expanduser().resolve()
+    since = args.since
+    force = args.force
+    project_filter = args.project
+
+    # Validate output_dir is within expected location
+    expected_base = Path.home() / ".claude" / "session-exports"
+    if not output_dir.is_relative_to(expected_base):
+        return {"error": f"Output dir must be within {expected_base}"}
+
+    # Validate --since format if provided
+    if since:
+        if not re.match(r"^\d{4}-\d{2}-\d{2}", since):
+            return {"error": f"Invalid --since format: {since}. Expected ISO 8601."}
+
+    # Slug/session_id validation pattern
+    safe_re = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+    # Collect sessions (completed + parked)
+    sessions = store.list_sessions(
+        project_slug=project_filter,
+        include_archived=True,
+    )
+
+    # Filter by since date if provided
+    if since:
+        sessions = [s for s in sessions if s.started_at and s.started_at >= since]
+
+    # Get registered projects for path lookup
+    projects = store.get_registered_projects()
+
+    exported = 0
+    skipped = 0
+    errors = []
+    total_redactions = 0
+
+    for session in sessions:
+        # Skip active sessions — they're still in progress
+        if session.status == "active":
+            skipped += 1
+            continue
+
+        # Validate slug and session_id
+        if not safe_re.match(session.project_slug):
+            errors.append(f"{session.session_id}: invalid project_slug")
+            continue
+        if not safe_re.match(session.session_id):
+            errors.append(f"{session.session_id}: invalid session_id format")
+            continue
+
+        # Build output path and verify it's within output_dir
+        project_dir = output_dir / session.project_slug
+        out_path = project_dir / f"{session.session_id}.md"
+        real_out = out_path.resolve()
+        if not real_out.is_relative_to(output_dir):
+            errors.append(f"{session.session_id}: path traversal detected")
+            continue
+
+        # Skip existing unless --force
+        if out_path.exists() and not force:
+            skipped += 1
+            continue
+
+        # Create directory with mode 700
+        project_dir.mkdir(parents=True, exist_ok=True)
+        os.chmod(str(project_dir), 0o700)
+
+        # Try transcript enrichment
+        conversation_highlights = ""
+        transcript_pct = 0
+        session_redactions = 0
+
+        # Find project path for JSONL discovery
+        project_path = None
+        if session.project_slug in projects:
+            project_path = projects[session.project_slug].path
+
+        try:
+            jsonl_path = find_jsonl_for_session(
+                session_id=session.session_id,  # This is dashboard format, not UUID
+                project_path=project_path,
+            )
+
+            # Dashboard sessions use sess_* format, JSONL uses UUIDs.
+            # We need to scan JSONL files to find matching content.
+            # The find_jsonl_for_session won't match directly — let's try
+            # finding any JSONL in the project dir and check timestamps.
+            if not jsonl_path and project_path:
+                jsonl_path = _find_jsonl_by_timestamp(
+                    session, project_path, projects_dir=Path.home() / ".claude" / "projects"
+                )
+
+            if jsonl_path:
+                reader = JSONLReader(jsonl_path)
+                transcript = reader.read_transcript()
+
+                if transcript.turns:
+                    # Step 1: Combine all turn text for redaction
+                    for turn in transcript.turns:
+                        turn.text, sec_count = redact_secrets(turn.text)
+                        session_redactions += sec_count
+                        turn.text, pii_count = redact_pii(turn.text)
+                        session_redactions += pii_count
+
+                    # Step 2: Trim to ~2000 words
+                    selected, orig_words, trim_words = trim_turns(transcript.turns)
+                    if orig_words > 0:
+                        transcript_pct = round(trim_words / orig_words * 100)
+
+                    # Step 3: Format as conversation highlights
+                    highlight_parts = []
+                    for turn in selected:
+                        prefix = "**User:**" if turn.role == "user" else "**Claude:**"
+                        highlight_parts.append(f"{prefix} {turn.text}")
+                    conversation_highlights = "\n\n".join(highlight_parts)
+
+                total_redactions += session_redactions
+
+        except Exception as e:
+            logger.warning("Transcript enrichment failed for %s: %s", session.session_id, e)
+
+        # Generate Markdown with frontmatter
+        md = export.export_session_recall_markdown(
+            session,
+            conversation_highlights=conversation_highlights,
+            transcript_pct=transcript_pct,
+        )
+
+        # Write with mode 600
+        fd = os.open(str(out_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(md)
+        exported += 1
+
+    return {
+        "exported": exported,
+        "skipped": skipped,
+        "errors": errors[:20],  # Cap error list
+        "total_redactions": total_redactions,
+        "output_dir": str(output_dir),
+    }
+
+
+def _find_jsonl_by_timestamp(
+    session, project_path: str, projects_dir: Path,
+) -> Path | None:
+    """Find JSONL file matching a dashboard session by timestamp proximity.
+
+    Dashboard sessions have sess_YYYYMMDDTHHMM_xxxx IDs but JSONL files
+    use UUIDs. We match by checking if the JSONL's first user message
+    timestamp is close to the session's started_at.
+    """
+    import json
+    from datetime import datetime
+
+    if not project_path:
+        return None
+
+    # Derive Claude Code directory name
+    encoded = project_path.replace("/", "-")
+    claude_dir = projects_dir / encoded
+    if not claude_dir.is_dir():
+        return None
+
+    try:
+        session_start = datetime.fromisoformat(session.started_at)
+    except (ValueError, TypeError):
+        return None
+
+    best_match = None
+    best_delta = float("inf")
+
+    for jsonl_file in claude_dir.glob("*.jsonl"):
+        try:
+            with open(jsonl_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    obj = json.loads(line)
+                    ts = obj.get("timestamp")
+                    if ts and obj.get("type") in ("user", "assistant"):
+                        try:
+                            jsonl_start = datetime.fromisoformat(ts)
+                            delta = abs((jsonl_start - session_start).total_seconds())
+                            if delta < best_delta and delta < 300:  # within 5 minutes
+                                best_delta = delta
+                                best_match = jsonl_file
+                        except (ValueError, TypeError):
+                            pass
+                        break  # Only check first timestamped message
+        except (OSError, json.JSONDecodeError):
+            continue
+
+    return best_match
 
 
 def _capture_commits(session_id: str, repo_path: str) -> dict:
