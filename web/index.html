@@ -575,6 +575,105 @@
   }
 
 
+  /* Accordion expand */
+  .card-chevron {
+    flex-shrink: 0;
+    width: 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.15s;
+    cursor: pointer;
+    user-select: none;
+    text-align: center;
+  }
+
+  .card-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .card-expand {
+    display: none;
+    padding: 0 16px 12px 44px;
+    border-top: 1px solid var(--border);
+  }
+
+  .card-expand.open {
+    display: block;
+  }
+
+  .expand-section {
+    margin-bottom: 8px;
+  }
+
+  .expand-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .expand-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    margin-top: 8px;
+  }
+
+  .expand-event {
+    display: flex;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 12px;
+  }
+
+  .expand-event-time {
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .expand-event-msg {
+    color: var(--text);
+  }
+
+  .expand-event-type {
+    font-weight: 600;
+  }
+
+  .type-actie { color: var(--accent-blue); }
+  .type-commit { color: var(--accent-green); }
+  .type-besluit { color: var(--accent-purple); }
+  .type-opvallend { color: var(--accent-orange); }
+
+  .expand-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .expand-progress-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    flex: 1;
+    max-width: 120px;
+    overflow: hidden;
+  }
+
+  .expand-progress-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 2px;
+  }
+
+  .expand-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   /* Task tracking */
   .tag-tasks {
     background: rgba(152, 110, 226, 0.15);
@@ -665,7 +764,7 @@
 <script>
 const POLL_INTERVAL = 30000;
 let errorCount = 0;
-let currentFilter = 'all';
+let currentFilter = 'active';
 let currentProject = '';
 let searchQuery = '';
 let lastData = null;
@@ -789,6 +888,90 @@ function renderFilters(sessions) {
   return html;
 }
 
+function formatEventMsg(msg) {
+  const prefixes = [
+    ['Actie:', 'type-actie'],
+    ['Commit:', 'type-commit'],
+    ['Besluit:', 'type-besluit'],
+    ['Opvallend:', 'type-opvallend'],
+  ];
+  for (const [prefix, cls] of prefixes) {
+    if (msg.startsWith(prefix)) {
+      return '<span class="expand-event-type ' + cls + '">' + esc(prefix) + '</span> ' + esc(msg.slice(prefix.length).trim());
+    }
+  }
+  return esc(msg);
+}
+
+function renderExpandPanel(s) {
+  const events = s.events || [];
+  const tasks = s.tasks || [];
+  const hasContent = events.length > 2 || tasks.length > 0;
+
+  if (!hasContent) {
+    return '<div class="expand-section"><span class="expand-empty">Nog geen activiteit geregistreerd</span></div>';
+  }
+
+  let html = '';
+
+  // Tasks with progress bar (if any)
+  if (tasks.length > 0) {
+    const done = tasks.filter(t => t.status === 'completed').length;
+    const pct = Math.round((done / tasks.length) * 100);
+    html += '<div class="expand-section">';
+    html += '<div class="expand-progress">';
+    html += '<div class="expand-progress-bar"><div class="expand-progress-fill" style="width:' + pct + '%"></div></div>';
+    html += done + '/' + tasks.length + ' tasks';
+    html += '</div>';
+    for (const t of tasks) {
+      let icon = '\u25CB', cls = 'type-actie';
+      if (t.status === 'completed') { icon = '\u2713'; cls = 'type-commit'; }
+      else if (t.status === 'in_progress') { icon = '\u25B8'; cls = 'type-actie'; }
+      else if (t.status === 'skipped') { icon = '\u2013'; cls = ''; }
+      html += '<div class="expand-event"><span class="expand-event-type ' + cls + '">' + icon + '</span>';
+      html += '<span class="expand-event-msg">' + esc(t.subject || '') + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  // Recent events (skip "Sessie gestart" and "Intent vastgelegd", show last 5)
+  const meaningful = events.filter(e => {
+    const m = (e.message || '');
+    return !m.startsWith('Sessie gestart') && !m.startsWith('Intent vastgelegd');
+  });
+
+  if (meaningful.length > 0) {
+    const recent = meaningful.slice(-5);
+    html += '<div class="expand-section">';
+    html += '<div class="expand-label">Recente activiteit</div>';
+    for (const e of recent) {
+      const msg = e.message || '';
+      html += '<div class="expand-event">';
+      html += '<span class="expand-event-time">' + formatTime(e.timestamp) + '</span>';
+      html += '<span class="expand-event-msg">' + formatEventMsg(msg) + '</span>';
+      html += '</div>';
+    }
+    if (meaningful.length > 5) {
+      html += '<div class="expand-event"><span class="expand-event-time"></span>';
+      html += '<span class="expand-empty">+ ' + (meaningful.length - 5) + ' meer — klik voor detail</span></div>';
+    }
+    html += '</div>';
+  }
+
+  return html;
+}
+
+function toggleExpand(evt, sessionId) {
+  evt.stopPropagation();
+  const card = document.querySelector('.session-card[data-id="' + sessionId + '"]');
+  if (!card) return;
+  const chevron = card.querySelector('.card-chevron');
+  const panel = card.querySelector('.card-expand');
+  if (!chevron || !panel) return;
+  chevron.classList.toggle('open');
+  panel.classList.toggle('open');
+}
+
 function renderCardRow(s) {
   // Dot priority: awaiting_action > stale > active
   let dotClass = 'dot-active';
@@ -803,10 +986,12 @@ function renderCardRow(s) {
   else if (s.type === 'parked') time = timeAgo(s.ended_at);
   else if (s.type === 'completed') time = timeAgo(s.ended_at);
 
-  let html = '<div class="session-card" data-id="' + esc(s.session_id) + '">';
-  html += '<div class="card-row" onclick="openDetail(\'' + esc(s.session_id) + '\')">';
+  const sid = esc(s.session_id);
+  let html = '<div class="session-card" data-id="' + sid + '">';
+  html += '<div class="card-row">';
+  html += '<span class="card-chevron" onclick="toggleExpand(event, \'' + sid + '\')">\u25B8</span>';
   html += '<span class="dot ' + dotClass + '"></span>';
-  html += '<span class="card-intent">' + esc(s.intent) + '</span>';
+  html += '<span class="card-intent" onclick="openDetail(\'' + sid + '\')" style="cursor:pointer">' + esc(s.intent) + '</span>';
 
   // Activity text: current_activity, last event as fallback, or outcome for completed
   let activity = s.current_activity || '';
@@ -844,6 +1029,11 @@ function renderCardRow(s) {
   html += '</span>';
 
   html += '<span class="card-time">' + esc(time) + '</span>';
+  html += '</div>';
+
+  // Expandable panel
+  html += '<div class="card-expand">';
+  html += renderExpandPanel(s);
   html += '</div>';
 
   html += '</div>';
@@ -1000,11 +1190,10 @@ function renderDetailView() {
   if (events.length > 0) {
     html += '<div class="detail-panel' + (tasks.length === 0 ? ' detail-panel-full' : '') + '">';
     html += '<div class="detail-label">Event timeline (' + events.length + ')</div>';
-    const reversed = [...events].reverse();
-    for (const e of reversed) {
+    for (const e of events) {
       html += '<div class="timeline-event">';
       html += '<span class="timeline-date">' + formatDate(e.timestamp) + '</span>';
-      html += '<span class="timeline-msg">' + esc(e.message) + '</span>';
+      html += '<span class="timeline-msg">' + formatEventMsg(e.message || '') + '</span>';
       html += '</div>';
     }
     html += '</div>';
@@ -1157,7 +1346,8 @@ function render() {
     container.innerHTML = '<div class="empty-msg">' + msg + '</div>';
   } else {
     let html = '';
-    for (const p of lastData.projects) {
+    const sortedProjects = [...lastData.projects].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    for (const p of sortedProjects) {
       if (currentProject && p.slug !== currentProject) continue;
       const projectSessions = filtered.filter(s => s.project_slug === p.slug);
       if (projectSessions.length === 0) continue;
