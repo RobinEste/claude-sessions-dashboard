@@ -407,14 +407,20 @@ def heartbeat(session_id: str) -> Session | None:
 
 
 def heartbeat_project(project_slug: str) -> list[Session]:
-    """Update heartbeat for ALL active sessions of a project."""
+    """Update heartbeat for the most recent active session of a project.
+
+    Only updates the session with the latest started_at timestamp to avoid
+    keeping orphaned sessions alive. Previous behaviour updated ALL active
+    sessions, which prevented stale-session cleanup from working correctly.
+    """
     validate_project_slug(project_slug)
-    updated = []
-    for session in get_active_sessions(project_slug):
-        result = heartbeat(session.session_id)
-        if result:
-            updated.append(result)
-    return updated
+    active = get_active_sessions(project_slug)
+    if not active:
+        return []
+    # Sort by started_at descending — most recent first
+    active.sort(key=lambda s: s.started_at or "", reverse=True)
+    result = heartbeat(active[0].session_id)
+    return [result] if result else []
 
 
 _UPDATE_FIELD_LIMITS = {

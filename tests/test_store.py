@@ -381,10 +381,12 @@ class TestHeartbeat:
     def test_heartbeat_project(self):
         store.register_project("P", "/tmp/p")
         store.create_session(project_slug="p", intent="S1")
-        store.create_session(project_slug="p", intent="S2")
+        s2 = store.create_session(project_slug="p", intent="S2")
 
         updated = store.heartbeat_project("p")
-        assert len(updated) == 2
+        # Only the most recent session gets updated (prevents orphan keepalive)
+        assert len(updated) == 1
+        assert updated[0].session_id == s2.session_id
 
 
 # ---------------------------------------------------------------------------
