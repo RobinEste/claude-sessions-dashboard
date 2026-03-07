@@ -513,8 +513,7 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
         return {"error": f"Output dir must be within {expected_base}"}
 
     # Validate --since format if provided
-    if since:
-        if not re.match(r"^\d{4}-\d{2}-\d{2}", since):
+    if since and not re.match(r"^\d{4}-\d{2}-\d{2}", since):
             return {"error": f"Invalid --since format: {since}. Expected ISO 8601."}
 
     # Slug/session_id validation pattern

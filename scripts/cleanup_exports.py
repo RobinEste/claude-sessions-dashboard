@@ -11,6 +11,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import re
 import sys
@@ -108,10 +109,8 @@ def cleanup(exports_dir: Path, older_than_days: int, dry_run: bool = False) -> i
     # Clean up empty project directories
     for subdir in exports_dir.iterdir():
         if subdir.is_dir() and not any(subdir.iterdir()):
-            try:
+            with contextlib.suppress(OSError):
                 subdir.rmdir()
-            except OSError:
-                pass
 
     # Remove stale search index so it gets rebuilt
     index_path = exports_dir / ".search-index.json"

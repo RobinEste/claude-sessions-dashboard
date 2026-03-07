@@ -27,13 +27,15 @@ _TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 
 # Stopwords (minimal set — Dutch + English)
-_STOPWORDS = frozenset(
-    "de het een van in is dat op te en er aan voor met als om maar dan "
-    "ook nog bij uit ze al was ze of hun ze die dit door wordt zijn "
-    "the a an in is it of to and for on at by with from or as but not "
-    "this that was be are were been has have had do does did will would "
-    "can could should may might".split()
-)
+_STOPWORDS = frozenset([
+    "de", "het", "een", "van", "in", "is", "dat", "op", "te", "en", "er", "aan",
+    "voor", "met", "als", "om", "maar", "dan", "ook", "nog", "bij", "uit", "ze",
+    "al", "was", "ze", "of", "hun", "ze", "die", "dit", "door", "wordt", "zijn",
+    "the", "a", "an", "in", "is", "it", "of", "to", "and", "for", "on", "at",
+    "by", "with", "from", "or", "as", "but", "not", "this", "that", "was", "be",
+    "are", "were", "been", "has", "have", "had", "do", "does", "did", "will",
+    "would", "can", "could", "should", "may", "might",
+])
 
 
 def _tokenize(text: str) -> list[str]:
@@ -196,7 +198,7 @@ class SearchIndex:
         query_token_set = set(query_tokens)
         results = []
 
-        for doc_id, doc in self._docs.items():
+        for _doc_id, doc in self._docs.items():
             # Filter by project if specified
             if project and doc["metadata"].get("project_slug") != project:
                 continue

@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import json
-import tempfile
 from pathlib import Path
-
-import pytest
 
 from lib.jsonl_reader import (
     ConversationTurn,
@@ -15,7 +12,6 @@ from lib.jsonl_reader import (
     redact_secrets,
     trim_turns,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helper: write temp JSONL
@@ -118,7 +114,10 @@ class TestJSONLReader:
                 "sessionId": "s1",
                 "message": {
                     "role": "user",
-                    "content": "<command-message>sessie-start</command-message><command-name>/sessie-start</command-name>",
+                    "content": (
+                        "<command-message>sessie-start</command-message>"
+                        "<command-name>/sessie-start</command-name>"
+                    ),
                 },
             },
         ]
@@ -226,7 +225,7 @@ class TestTrimming:
 
     def test_trim_respects_budget(self):
         turns = self._make_turns(20, words_per=200)
-        selected, orig, trimmed = trim_turns(turns, max_words=2000)
+        selected, _orig, trimmed = trim_turns(turns, max_words=2000)
         assert trimmed <= 2000 + 200  # Allow some overshoot from last included turn
         assert len(selected) < 20
 

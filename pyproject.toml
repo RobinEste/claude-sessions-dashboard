@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-sessions-dashboard"
-version = "1.0.0"
+version = "2.0.0"
 description = "Lightweight, file-based session tracker and web dashboard for Claude Code"
 readme = "README.md"
 license = "MIT"

@@ -5,6 +5,10 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 
 ## [Unreleased]
 
+_Geen wijzigingen._
+
+## [2.0.0] — 2026-03-07
+
 ### Toegevoegd
 - Optionele desktop notificaties voor stale en lang-geparkeerde sessies via macOS osascript, met cooldown en state tracking. Opt-in via `notifications_enabled` in config, periodiek draaibaar via launchd (D5)
 - Export als JSON of Markdown via CLI (`manage.py export`), API (`/api/export/session/`, `/api/export/project/`) en downloadknoppen in session detail view (D4)
