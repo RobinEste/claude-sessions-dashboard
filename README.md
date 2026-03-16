@@ -9,11 +9,18 @@ When you use Claude Code across multiple projects and terminal windows, it's eas
 - **Session tracking** — each Claude Code conversation registers as a session with an intent, events, and outcome
 - **Task tracking** — sessions can have tasks with status (pending/in_progress/completed/skipped), shown as a progress bar in the UI
 - **Park & resume** — pause a session with a reason and pick it up later
+- **Search & filter** — free-text search, project dropdown, and status filters in the web dashboard
+- **Session detail view** — click any session for full event timeline, tasks, commits, decisions, and files changed
+- **Session index** — lightweight `_index.json` for fast lookup without scanning all files
+- **Export** — export sessions or entire projects as JSON or Markdown, via CLI, API, or download buttons in the dashboard
+- **Schema versioning** — session JSON files carry a `schema_version` with automatic on-read migration
+- **Archive** — completed sessions older than N days are moved to `archive/` to keep the active set small
+- **Input validation** — CLI arguments and API payloads are validated before reaching the store layer
+- **Security hardening** — path traversal checks, symlink protection, file size limits, safe JSON deserialization
 - **Stale detection** — sessions without a heartbeat for 24h are flagged
 - **Auto-cleanup** — stale sessions are automatically closed via a CLI command or launchd periodic job
 - **Concurrency safe** — all session mutations are protected by file-level locking (`fcntl.flock`)
 - **Project overview** — see all your projects, their current phase, and roadmap progress
-- **Export** — export sessions or entire projects as JSON or Markdown, via CLI, API, or download buttons in the dashboard
 - **Desktop notifications** — optional macOS notifications when sessions go stale or parked sessions wait too long (opt-in, runs via launchd)
 - **Web dashboard** — dark-themed, auto-refreshing UI at `localhost:9000`
 - **Zero dependencies** — the core runs on Python stdlib only (web UI needs `fastapi` + `uvicorn`)
@@ -265,7 +272,10 @@ Then use `/session-start` at the beginning and `/session-end` at the end of each
 ├── lib/
 │   ├── models.py      # Dataclasses (Session, ProjectState, etc.)
 │   ├── store.py       # JSON file CRUD with atomic writes + file locking
+│   ├── validation.py  # Input validation for CLI args and store operations
 │   ├── export.py      # Export formatting (JSON + Markdown, no I/O)
+│   ├── search.py      # TF-IDF search index for session exports
+│   ├── jsonl_reader.py # JSONL reader for review output
 │   └── notify.py      # Desktop notifications for stale/parked sessions
 ├── web/
 │   ├── app.py         # FastAPI server (5 routes)
@@ -299,7 +309,7 @@ All data is stored locally in `~/.claude/dashboard/` and never leaves your machi
 
 ## Requirements
 
-- Python 3.11+ (uses `StrEnum`, `X | Y` union syntax)
+- Python 3.13+ (uses `StrEnum`, `X | Y` union syntax)
 - FastAPI + Uvicorn (only for the web dashboard)
 - Claude Code (for hook integration)
 

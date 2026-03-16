@@ -1,0 +1,21 @@
+{
+  "review_id": "review-2026-03-07-a36449",
+  "created_at": "2026-03-07T13:12:00Z",
+  "diff_target": "git diff HEAD~2",
+  "repo": "RobinEste/claude-sessions-dashboard",
+  "branch": "main",
+  "commit_sha": "a364492",
+  "filtered_findings": [],
+  "filter_stats": {
+    "received": 0,
+    "hard_excluded": 0,
+    "duplicates_merged": 0,
+    "confidence_filtered": 0,
+    "score_filtered": 0,
+    "max_capped": 0,
+    "final_count": 0
+  },
+  "verdict": "approve",
+  "verdict_rationale": "Geen issues gevonden in deze wijziging",
+  "risk_score": 0
+}

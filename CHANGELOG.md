@@ -26,7 +26,7 @@ _Geen wijzigingen._
 - GitHub Actions CI met pytest + ruff, SHA-pinned actions (B1)
 - `TaskStatus` StrEnum voor type-safe task statussen (CON-001)
 - Session ID validatie tegen path traversal (SEC-001)
-- Test suite: 133 tests over models, store, CLI en web (A3–A6)
+- Test suite: 341 tests over models, store, CLI, web, validation, export, notify, search en jsonl_reader (A3–A6 + uitbreidingen)
 - `pyproject.toml` met PEP 621 metadata en `[web]`/`[test]` extras (A1)
 - `requirements.txt` voor snelle installatie (A2)
 

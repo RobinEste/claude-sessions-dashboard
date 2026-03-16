@@ -8,18 +8,28 @@ Core has zero external dependencies; web dashboard uses FastAPI + uvicorn.
 ## Directory structure
 
 ```
-manage.py          # CLI entry point (_dispatch handles all commands)
+manage.py              # CLI entry point (_dispatch handles all commands)
 lib/
-  models.py        # Dataclasses + StrEnum (Session, ProjectState, etc.)
-  store.py         # CRUD on JSON files, atomic writes, fcntl locking
+  models.py            # Dataclasses + StrEnum (Session, ProjectState, etc.)
+  store.py             # CRUD on JSON files, atomic writes, fcntl locking
+  validation.py        # Input validation for CLI args and store operations
+  export.py            # Export formatting (JSON + Markdown, no I/O)
+  search.py            # TF-IDF search index for session exports
+  notify.py            # Desktop notifications for stale/parked sessions
+  jsonl_reader.py      # JSONL reader for review output
 web/
-  app.py           # FastAPI routes (/api/overview, /api/session/{id})
-  dashboard.html   # Single-page vanilla JS dashboard
+  app.py               # FastAPI routes (/api/overview, /api/session/{id}, export)
+  index.html           # Single-page vanilla JS dashboard
 tests/
-  test_models.py   # 22 tests — serialization, ID generation
-  test_store.py    # 65 tests — CRUD, locking, tasks, stale cleanup
-  test_cli.py      # 34 tests — _dispatch() + subprocess JSON output
-  test_web.py      # 9 tests — FastAPI TestClient
+  test_models.py       # 22 tests — serialization, ID generation
+  test_store.py        # 100 tests — CRUD, locking, tasks, stale cleanup
+  test_cli.py          # 44 tests — _dispatch() + subprocess JSON output
+  test_web.py          # 20 tests — FastAPI TestClient
+  test_validation.py   # 71 tests — input validation
+  test_export.py       # 36 tests — export formatting
+  test_notify.py       # 21 tests — desktop notifications
+  test_search.py       # 9 tests — TF-IDF search
+  test_jsonl_reader.py # 18 tests — JSONL reader
 ```
 
 ## Commands
