@@ -140,6 +140,7 @@ def main() -> None:
     p = sub.add_parser("list-sessions", help="List all sessions")
     p.add_argument("--project", help="Filter by project slug")
     p.add_argument("--status", choices=["active", "completed", "parked"])
+    p.add_argument("--since", help="Only sessions started on or after this date (YYYY-MM-DD)")
     p.add_argument("--limit", type=int, default=20)
     p.add_argument("--include-archived", action="store_true", help="Include archived sessions")
 
@@ -177,6 +178,7 @@ def main() -> None:
     p.add_argument("--project", help="Only export sessions for this project slug")
     p.add_argument("--since", help="Only export sessions started after this ISO date")
     p.add_argument("--force", action="store_true", help="Overwrite existing exports")
+    p.add_argument("--flat", action="store_true", help="Skip project subdirectory (for vault export)")
 
     # --- Search (for /recall) ---
     p = sub.add_parser("search", help="Search session exports via TF-IDF")
@@ -371,6 +373,8 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             status=status,
             include_archived=args.include_archived,
         )
+        if args.since:
+            sessions = [s for s in sessions if s.started_at and str(s.started_at)[:10] >= args.since]
         return [asdict(s) for s in sessions[: args.limit]]
 
     if cmd == "project-state":
@@ -507,10 +511,20 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
     force = args.force
     project_filter = args.project
 
-    # Validate output_dir is within expected location
+    # Validate output_dir is within expected locations
+    from pathlib import PurePosixPath
     expected_base = Path.home() / ".claude" / "session-exports"
-    if not output_dir.is_relative_to(expected_base):
-        return {"error": f"Output dir must be within {expected_base}"}
+    vault_env = os.environ.get("OBSIDIAN_VAULT_PATH", str(Path.home() / "Odin"))
+    vault_base = Path(vault_env).resolve()
+    # macOS is case-insensitive: compare lowercased PurePosixPaths for containment
+    allowed = (
+        output_dir.is_relative_to(expected_base)
+        or PurePosixPath(str(output_dir).lower()).is_relative_to(
+            PurePosixPath(str(vault_base).lower())
+        )
+    )
+    if not allowed:
+        return {"error": f"Output dir must be within {expected_base} or {vault_base}"}
 
     # Validate --since format if provided
     if since and not re.match(r"^\d{4}-\d{2}-\d{2}", since):
@@ -536,6 +550,7 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
     skipped = 0
     errors = []
     total_redactions = 0
+    flat = getattr(args, 'flat', False)
 
     for session in sessions:
         # Skip active sessions — they're still in progress
@@ -552,7 +567,7 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
             continue
 
         # Build output path and verify it's within output_dir
-        project_dir = output_dir / session.project_slug
+        project_dir = output_dir if flat else output_dir / session.project_slug
         out_path = project_dir / f"{session.session_id}.md"
         real_out = out_path.resolve()
         if not real_out.is_relative_to(output_dir):

@@ -17,8 +17,16 @@ import re
 from collections import Counter
 from pathlib import Path
 
-DEFAULT_EXPORTS_DIR = Path.home() / ".claude" / "session-exports"
+DEFAULT_INDEX_DIR = Path.home() / ".claude" / "session-exports"
 INDEX_FILENAME = ".search-index.json"
+
+# Primary source: vault sessies-dirs (~/Odin/projecten/<X>/sessies/*.md).
+# Index json itself stays in ~/.claude/session-exports/ so it never clutters
+# the vault. Fallback to legacy exports-dir when vault is absent (no $VAULT,
+# or running on a machine without the vault setup).
+_VAULT_ROOT = Path(os.environ.get("OBSIDIAN_VAULT_PATH", str(Path.home() / "Odin")))
+DEFAULT_SESSIONS_ROOT = _VAULT_ROOT / "projecten"
+LEGACY_EXPORTS_DIR = Path.home() / ".claude" / "session-exports"
 
 # Simple tokeniser: split on non-alphanumeric, lowercase
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9]+")
@@ -108,11 +116,23 @@ class SearchIndex:
     """TF-IDF inverted index over Markdown export files."""
 
     def __init__(self, exports_dir: Path | None = None) -> None:
-        self.exports_dir = exports_dir or DEFAULT_EXPORTS_DIR
-        self.index_path = self.exports_dir / INDEX_FILENAME
+        # Backwards-compat: `exports_dir` param now controls the legacy fallback
+        # only. Sessions root and index dir are derived independently.
+        self.sessions_root = DEFAULT_SESSIONS_ROOT
+        self.legacy_dir = exports_dir or LEGACY_EXPORTS_DIR
+        self.index_path = DEFAULT_INDEX_DIR / INDEX_FILENAME
+        DEFAULT_INDEX_DIR.mkdir(parents=True, exist_ok=True)
         self._docs: dict[str, dict] = {}  # doc_id → {tokens, metadata, path}
         self._idf: dict[str, float] = {}
         self._doc_count = 0
+
+    def _iter_session_files(self):
+        """Yield session markdown files from the vault, or the legacy
+        exports-dir if the vault is not present on this machine."""
+        if self.sessions_root.is_dir():
+            yield from self.sessions_root.glob("*/sessies/*.md")
+        elif self.legacy_dir.is_dir():
+            yield from self.legacy_dir.rglob("*.md")
 
     def _needs_rebuild(self) -> bool:
         """Check if index needs rebuilding based on file mtimes."""
@@ -120,7 +140,7 @@ class SearchIndex:
             return True
 
         index_mtime = self.index_path.stat().st_mtime
-        for md_file in self.exports_dir.rglob("*.md"):
+        for md_file in self._iter_session_files():
             if md_file.stat().st_mtime > index_mtime:
                 return True
         return False
@@ -137,7 +157,7 @@ class SearchIndex:
         self._docs = {}
         doc_freq: Counter = Counter()
 
-        for md_file in self.exports_dir.rglob("*.md"):
+        for md_file in self._iter_session_files():
             try:
                 text = md_file.read_text(encoding="utf-8")
             except OSError:

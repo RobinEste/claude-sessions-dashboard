@@ -24,3 +24,10 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/
+
+# Obsidian / Vault-only
+sessies/
+meetings/
+.notes.md
+.obsidian/
+.obsidianignore
