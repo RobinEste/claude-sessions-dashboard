@@ -10,6 +10,7 @@ from lib.jsonl_reader import (
     JSONLReader,
     redact_pii,
     redact_secrets,
+    redact_username,
     trim_turns,
 )
 
@@ -201,6 +202,60 @@ class TestRedaction:
         assert p_count == 0
         assert secret_result == text
         assert pii_result == text
+
+
+class TestUsernameRedaction:
+    def test_dash_encoded_project_dir_redacted(self):
+        text = "JSONL in -Users-robin-GitHub-demo/sessie.jsonl"
+        result, count = redact_username(text)
+        assert "[USER]" in result
+        assert "robin" not in result
+        assert "-Users-" in result  # path prefix kept for readability
+        assert count >= 1
+
+    def test_slash_path_redacted(self):
+        text = "Saved to /Users/robin/ODIN/projecten/foo"
+        result, count = redact_username(text)
+        assert "/Users/[USER]" in result
+        assert "robin" not in result
+        assert count >= 1
+
+    def test_home_path_redacted(self):
+        text = "config at /home/robin/.config and -home-robin-cache"
+        result, count = redact_username(text)
+        assert "robin" not in result
+        assert count == 2
+
+    def test_no_false_positive_on_prose(self):
+        text = "The Users table and the home page both load fast (home-office setup)."
+        result, count = redact_username(text)
+        assert count == 0
+        assert result == text
+
+
+class TestHarnessNoiseStripping:
+    def test_system_reminder_stripped_from_user_turn(self, tmp_path):
+        content = (
+            "Echte vraag van de gebruiker.\n"
+            "<system-reminder>Injected harness noise, not real input.\n"
+            "Meerdere regels.</system-reminder>"
+        )
+        path = _write_jsonl(
+            [
+                {
+                    "type": "user",
+                    "sessionId": "s1",
+                    "timestamp": "t",
+                    "message": {"role": "user", "content": content},
+                }
+            ],
+            tmp_path,
+        )
+        result = JSONLReader(path).read_transcript()
+        assert len(result.turns) == 1
+        assert "Echte vraag van de gebruiker." in result.turns[0].text
+        assert "system-reminder" not in result.turns[0].text
+        assert "Injected harness noise" not in result.turns[0].text
 
 
 # ---------------------------------------------------------------------------

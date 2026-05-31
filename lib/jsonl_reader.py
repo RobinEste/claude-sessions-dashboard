@@ -54,6 +54,20 @@ _PII_PATTERNS = [
     re.compile(r"\+[1-9]\d{0,2}[\s\-]?\d{2,4}[\s\-]?\d{3,4}[\s\-]?\d{2,4}"),  # intl phone
 ]
 
+# Username/path patterns. A bare `/Users/` regex misses the dash-encoded
+# `-Users-<name>-...` form that Claude Code uses for project directory names —
+# which is how the real username leaks into transcripts and the search index.
+# Ported from aibuild-lab/agent-conversations-cairn (PLAN-2026-031 item E1), but
+# only the delimiter-anchored forms are kept: the workshop's bare-boundary
+# variants (`\bUsers-`, `\bhome-`) false-positive on prose ("home-office",
+# "users-guide"), which matters for a recall search index.
+_USERNAME_PATH_PATTERNS = [
+    re.compile(r"(?i)(-Users-)[^-/\s]+"),
+    re.compile(r"(?i)(/Users/)[^/\s]+"),
+    re.compile(r"(?i)(-home-)[^-/\s]+"),
+    re.compile(r"(?i)(/home/)[^/\s]+"),
+]
+
 
 @dataclass
 class ConversationTurn:
@@ -148,8 +162,13 @@ class JSONLReader:
     def _extract_user_text(self, content) -> str:
         """Extract text from user message content."""
         if isinstance(content, str):
-            # Strip command tags that are not useful for recall
-            text = re.sub(r"<command-(?:message|name)>.*?</command-(?:message|name)>", "", content)
+            # Strip harness noise that is not real user input: command tags and
+            # injected system-reminder blocks. Keep the real prompt around them.
+            text = re.sub(
+                r"<command-(?:message|name)>.*?</command-(?:message|name)>",
+                "", content, flags=re.DOTALL,
+            )
+            text = re.sub(r"<system-reminder>.*?</system-reminder>", "", text, flags=re.DOTALL)
             return text.strip()
         if isinstance(content, list):
             parts = []
@@ -191,6 +210,20 @@ def redact_pii(text: str) -> tuple[str, int]:
         if matches:
             count += len(matches)
             text = pattern.sub("[PII]", text)
+    return text, count
+
+
+def redact_username(text: str) -> tuple[str, int]:
+    """Replace usernames in path forms with [USER]. Returns (text, count).
+
+    Handles both `/Users/<name>` and the dash-encoded `-Users-<name>` project
+    directory form (and /home equivalents). The path prefix is kept so the
+    structure stays readable: `-Users-robin-...` -> `-Users-[USER]-...`.
+    """
+    count = 0
+    for pattern in _USERNAME_PATH_PATTERNS:
+        text, n = pattern.subn(lambda m: m.group(1) + "[USER]", text)
+        count += n
     return text, count
 
 

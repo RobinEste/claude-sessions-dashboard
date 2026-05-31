@@ -502,6 +502,7 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
         find_jsonl_for_session,
         redact_pii,
         redact_secrets,
+        redact_username,
         trim_turns,
     )
 
@@ -619,6 +620,8 @@ def _handle_export_all(args: argparse.Namespace) -> dict:
                         session_redactions += sec_count
                         turn.text, pii_count = redact_pii(turn.text)
                         session_redactions += pii_count
+                        turn.text, user_count = redact_username(turn.text)
+                        session_redactions += user_count
 
                     # Step 2: Trim to ~2000 words
                     selected, orig_words, trim_words = trim_turns(transcript.turns)
