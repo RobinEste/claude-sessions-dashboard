@@ -5,7 +5,14 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 
 ## [Unreleased]
 
-_Geen wijzigingen._
+### Toegevoegd
+- `redact_username()` in `lib/jsonl_reader.py`: redacteert `/Users/<naam>` én de dash-encoded `-Users-<naam>` projectdir-vorm (+ `/home`-varianten) → `[USER]`, geïntegreerd in de export-redactieloop (`manage.py`, naast secrets/PII). Port van `aibuild-lab/agent-conversations-cairn` (claude-code-framework PLAN-2026-031 item E1); alleen delimiter-verankerde patronen overgenomen — de boundary-vorm gaf false-positives op proza. +4 tests.
+- System-reminder-strip uit user-turns in de JSONL-reader: `<system-reminder>…</system-reminder>`-blokken worden uit user-content verwijderd (harness-ruis), echte prompt blijft behouden. +1 test.
+
+### Gefixt
+- `test_list_sessions` / `test_list_sessions_with_filter` ontbraken `since=None` in de `ns()`-helper (AttributeError sinds commit `79d553f`), en een te lange regel in de list-sessions-handler is gewrapt. `test_cli` weer groen.
+
+> **Bekend issue:** 6 `test_search`-failures (search-ranking) bestaan sinds `79d553f` — getrackt als #3.
 
 ## [2.0.0] — 2026-03-07
 
