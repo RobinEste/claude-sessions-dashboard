@@ -275,6 +275,7 @@ class TestQueryCommands:
             command="list-sessions",
             project=None,
             status=None,
+            since=None,
             limit=20,
             include_archived=False,
         ))
@@ -286,6 +287,7 @@ class TestQueryCommands:
             command="list-sessions",
             project=project_slug,
             status="active",
+            since=None,
             limit=10,
             include_archived=False,
         ))

@@ -374,7 +374,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             include_archived=args.include_archived,
         )
         if args.since:
-            sessions = [s for s in sessions if s.started_at and str(s.started_at)[:10] >= args.since]
+            sessions = [
+                s for s in sessions
+                if s.started_at and str(s.started_at)[:10] >= args.since
+            ]
         return [asdict(s) for s in sessions[: args.limit]]
 
     if cmd == "project-state":
