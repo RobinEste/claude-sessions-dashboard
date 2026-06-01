@@ -83,10 +83,12 @@ class TestSessionCommands:
             intent="Build feature",
             roadmap_ref="A1",
             git_branch="main",
+            worktree_root="/Users/dev/wt",
         ))
         assert "session_id" in result
         assert result["intent"] == "Build feature"
         assert result["status"] == "active"
+        assert result["worktree_root"] == "/Users/dev/wt"
 
     def test_get_session(self, session_id):
         result = _dispatch(ns(command="get-session", session_id=session_id))

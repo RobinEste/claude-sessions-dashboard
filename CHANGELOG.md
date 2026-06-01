@@ -6,6 +6,7 @@ Format gebaseerd op [Keep a Changelog](https://keepachangelog.com/nl/1.1.0/).
 ## [Unreleased]
 
 ### Toegevoegd
+- **`worktree_root`-veld op sessies** (schema v3): `create_session()` + `manage.py create-session` accepteren `--worktree-root` (absolute git work-tree root, `rev-parse --show-toplevel`) en persisteren die per sessie. Maakt robuuste gedeelde-checkout-detectie in `/sessie-start` mogelijk (exacte work-tree i.p.v. mapnaam-heuristiek) — ccf #120 Fase 2. Veld is peer van `git_branch`: meegedragen bij `resume_session` + geëxposeerd in de overview-API. Back-compat via `_migrate_session_data` (v2→v3, default `None`) + `.get()`-deserialisatie. +2 tests (v2→v3-migratie, resume-preservatie) + `worktree_root`-asserts in de store/CLI create-session-tests.
 - `redact_username()` in `lib/jsonl_reader.py`: redacteert `/Users/<naam>` én de dash-encoded `-Users-<naam>` projectdir-vorm (+ `/home`-varianten) → `[USER]`, geïntegreerd in de export-redactieloop (`manage.py`, naast secrets/PII). Port van `aibuild-lab/agent-conversations-cairn` (claude-code-framework PLAN-2026-031 item E1); alleen delimiter-verankerde patronen overgenomen — de boundary-vorm gaf false-positives op proza. +4 tests.
 - System-reminder-strip uit user-turns in de JSONL-reader: `<system-reminder>…</system-reminder>`-blokken worden uit user-content verwijderd (harness-ruis), echte prompt blijft behouden. +1 test.
 

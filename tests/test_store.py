@@ -123,6 +123,27 @@ class TestSchemaVersioning:
         loaded = store.get_session(s.session_id)
         assert loaded.intent == "Modern"
 
+    def test_v2_session_migrated_to_v3(self):
+        """A v2 session (no worktree_root) gains the field as None on read."""
+        sid = "sess_20260101T0000_beef"
+        path = store.SESSIONS_DIR / f"{sid}.json"
+        v2_data = {
+            "session_id": sid,
+            "project_slug": "proj",
+            "status": "active",
+            "intent": "v2 session",
+            "started_at": "2026-01-01T00:00:00+00:00",
+            "last_heartbeat": "2026-01-01T00:00:00+00:00",
+            "tasks": [],
+            "schema_version": 2,
+        }
+        with open(path, "w") as f:
+            json.dump(v2_data, f)
+
+        s = store.get_session(sid)
+        assert s is not None
+        assert s.worktree_root is None
+
 
 # ---------------------------------------------------------------------------
 # Session CRUD
@@ -136,13 +157,17 @@ class TestSessionCRUD:
             intent="Build feature",
             roadmap_ref="A1",
             git_branch="feature/x",
+            worktree_root="/Users/dev/repo-wt",
         )
         assert s.session_id.startswith("sess_")
         assert s.status == SessionStatus.ACTIVE
         assert s.intent == "Build feature"
         assert s.roadmap_ref == "A1"
         assert s.git_branch == "feature/x"
+        assert s.worktree_root == "/Users/dev/repo-wt"
         assert s.started_at != ""
+        # round-trip through disk preserves worktree_root
+        assert store.get_session(s.session_id).worktree_root == "/Users/dev/repo-wt"
 
     def test_get_session(self, session_id):
         s = store.get_session(session_id)
@@ -209,6 +234,17 @@ class TestSessionCRUD:
         old = store.get_session(session_id)
         assert old.status == SessionStatus.COMPLETED
         assert "Resumed as" in old.outcome
+
+    def test_resume_preserves_worktree_root(self):
+        """Resuming carries the work-tree root over, like git_branch."""
+        original = store.create_session(
+            project_slug="proj",
+            intent="Work",
+            worktree_root="/Users/dev/repo-wt",
+        )
+        store.park_session(original.session_id, reason="Break")
+        resumed = store.resume_session(original.session_id)
+        assert resumed.worktree_root == "/Users/dev/repo-wt"
 
     def test_resume_session_not_found(self):
         with pytest.raises(ValueError, match="not found"):

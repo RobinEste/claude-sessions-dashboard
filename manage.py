@@ -41,6 +41,11 @@ def main() -> None:
     p.add_argument("--intent", required=True, help="What this session will do")
     p.add_argument("--roadmap-ref", help="Roadmap reference (e.g. 'FASE D.3')")
     p.add_argument("--git-branch", default="main")
+    p.add_argument(
+        "--worktree-root",
+        default=None,
+        help="Absolute git work-tree root (rev-parse --show-toplevel) for shared-checkout detection",
+    )
 
     p = sub.add_parser("get-session", help="Get session details")
     p.add_argument("session_id")
@@ -233,6 +238,7 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             intent=args.intent,
             roadmap_ref=args.roadmap_ref,
             git_branch=args.git_branch,
+            worktree_root=args.worktree_root,
         )
         return asdict(session)
 

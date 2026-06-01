@@ -48,6 +48,7 @@ class Session:
     awaiting_action: str | None = None  # Reason user action is needed
     events: list[dict] = field(default_factory=list)
     git_branch: str = "main"
+    worktree_root: str | None = None  # Absolute git work-tree root (rev-parse --show-toplevel)
     files_changed: list[str] = field(default_factory=list)
     commits: list[dict] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
