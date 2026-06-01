@@ -22,6 +22,7 @@ MAX_ACTIVITY = 300
 MAX_ROADMAP_REF = 100
 MAX_PROJECT_NAME = 100
 MAX_GIT_BRANCH = 200
+MAX_WORKTREE_ROOT = 4096
 
 # ---------------------------------------------------------------------------
 # Regex patterns

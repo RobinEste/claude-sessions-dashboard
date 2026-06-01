@@ -40,6 +40,7 @@ from .validation import (
     MAX_REASON,
     MAX_ROADMAP_REF,
     MAX_TASK_SUBJECT,
+    MAX_WORKTREE_ROOT,
     validate_commits_json,
     validate_git_branch,
     validate_optional_string,
@@ -219,12 +220,14 @@ def create_session(
     intent: str,
     roadmap_ref: str | None = None,
     git_branch: str = "main",
+    worktree_root: str | None = None,
 ) -> Session:
     """Create a new active session."""
     validate_project_slug(project_slug)
     intent = validate_string_length(intent, "intent", MAX_INTENT)
     roadmap_ref = validate_optional_string(roadmap_ref, "roadmap_ref", MAX_ROADMAP_REF)
     git_branch = validate_git_branch(git_branch)
+    worktree_root = validate_optional_string(worktree_root, "worktree_root", MAX_WORKTREE_ROOT)
     session = Session(
         session_id=generate_session_id(),
         project_slug=project_slug,
@@ -234,6 +237,7 @@ def create_session(
         started_at=_now_iso(),
         last_heartbeat=_now_iso(),
         git_branch=git_branch,
+        worktree_root=worktree_root,
     )
     _save_session(session)
     _refresh_project_state(project_slug)
@@ -271,6 +275,7 @@ def _session_from_dict(data: dict) -> Session:
         awaiting_action=data.get("awaiting_action"),
         events=data.get("events", []),
         git_branch=data.get("git_branch", "main"),
+        worktree_root=data.get("worktree_root"),
         files_changed=data.get("files_changed", []),
         commits=data.get("commits", []),
         decisions=data.get("decisions", []),
@@ -280,15 +285,19 @@ def _session_from_dict(data: dict) -> Session:
     )
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _migrate_session_data(data: dict) -> dict:
     """Migrate session data from older schema versions to current."""
     version = data.get("schema_version", 1)
     if version < 2:
-        # v1 → v2: add schema_version and tasks field
+        # v1 → v2: add tasks field
         data.setdefault("tasks", [])
+    if version < 3:
+        # v2 → v3: add worktree_root field
+        data.setdefault("worktree_root", None)
+    if version < SCHEMA_VERSION:
         data["schema_version"] = SCHEMA_VERSION
     return data
 
@@ -677,6 +686,7 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         project_slug = old.project_slug
         roadmap_ref = old.roadmap_ref
         git_branch = old.git_branch
+        worktree_root = old.worktree_root
         open_questions = old.open_questions
 
         # Mark old session as completed (resumed into new)
@@ -695,6 +705,7 @@ def resume_session(session_id: str, new_intent: str | None = None) -> Session:
         started_at=_now_iso(),
         last_heartbeat=_now_iso(),
         git_branch=git_branch,
+        worktree_root=worktree_root,
         open_questions=open_questions,
     )
     _save_session(new_session)
@@ -1142,6 +1153,7 @@ def _session_to_overview_dict(session: Session, **extra) -> dict:
         "roadmap_ref": session.roadmap_ref,
         "events": session.events[-5:],
         "git_branch": session.git_branch,
+        "worktree_root": session.worktree_root,
         "files_changed": session.files_changed,
         "decisions": session.decisions,
         "open_questions": session.open_questions,
