@@ -136,6 +136,16 @@ def main() -> None:
     sub.add_parser("cleanup-stale", help="Auto-close stale sessions")
     sub.add_parser("cleanup-locks", help="Remove orphaned .lock files")
 
+    p = sub.add_parser(
+        "launch-plan",
+        help="Decide if a new session uses the main checkout (MAIN) or isolates "
+             "into a worktree (WORKTREE) because the checkout is already in use",
+    )
+    p.add_argument(
+        "--path", required=True,
+        help="Git work-tree root being entered (git rev-parse --show-toplevel)",
+    )
+
     p = sub.add_parser("archive", help="Archive old completed sessions")
     p.add_argument("--days", type=int, help="Archive sessions older than N days (default: config)")
     p.add_argument(
@@ -351,6 +361,10 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
     if cmd == "stale-sessions":
         sessions = store.get_stale_sessions()
         return [asdict(s) for s in sessions]
+
+    if cmd == "launch-plan":
+        occupied = store.get_fresh_sessions_for_worktree(args.path)
+        return "WORKTREE" if occupied else "MAIN"
 
     if cmd == "cleanup-stale":
         cleaned = store.cleanup_stale_sessions()
