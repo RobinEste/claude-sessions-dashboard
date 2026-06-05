@@ -822,6 +822,41 @@ def get_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
     return stale
 
 
+def get_fresh_sessions_for_worktree(
+    worktree_root: str, threshold_hours: int | None = None
+) -> list[Session]:
+    """Active sessions in `worktree_root` whose heartbeat is still within the
+    stale threshold — sessions that genuinely occupy that git checkout right now.
+
+    Used by the `launch-plan` command to decide whether a newly started session
+    should isolate into its own worktree. A crashed session that never closed
+    stays ACTIVE but goes stale; it must NOT count as occupying the checkout,
+    otherwise every later session would needlessly spawn a worktree.
+    """
+    if threshold_hours is None:
+        config = load_config()
+        threshold_hours = config.settings.stale_threshold_hours
+
+    now = datetime.now(UTC)
+    fresh = []
+    for session in get_active_sessions():
+        if session.worktree_root != worktree_root:
+            continue
+        reference = session.last_heartbeat or session.started_at
+        if not reference:
+            continue
+        try:
+            age_hours = (now - datetime.fromisoformat(reference)).total_seconds() / 3600
+        except (ValueError, TypeError):
+            # One malformed/naive timestamp must not crash the whole launch-plan
+            # check (and thereby silently disable isolation); skip just this record.
+            continue
+        if age_hours <= threshold_hours:
+            fresh.append(session)
+
+    return fresh
+
+
 def cleanup_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
     """Find and auto-close all stale sessions."""
     if threshold_hours is None:

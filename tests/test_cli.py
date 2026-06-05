@@ -265,6 +265,51 @@ class TestQueryCommands:
         result = _dispatch(ns(command="cleanup-stale"))
         assert result["cleaned"] == 0
 
+    def test_launch_plan_empty_checkout(self):
+        # No session occupies the checkout → use the main checkout.
+        result = _dispatch(ns(command="launch-plan", path="/Users/dev/repo"))
+        assert result == "MAIN"
+
+    def test_launch_plan_occupied_checkout(self, project_slug):
+        store.create_session(
+            project_slug=project_slug, intent="First session",
+            worktree_root="/Users/dev/repo",
+        )
+        result = _dispatch(ns(command="launch-plan", path="/Users/dev/repo"))
+        assert result == "WORKTREE"
+
+    def test_launch_plan_different_checkout(self, project_slug):
+        # An active session in another work-tree does not occupy this one.
+        store.create_session(
+            project_slug=project_slug, intent="Session elsewhere",
+            worktree_root="/Users/dev/other",
+        )
+        result = _dispatch(ns(command="launch-plan", path="/Users/dev/repo"))
+        assert result == "MAIN"
+
+    def test_launch_plan_ignores_stale_session(self, project_slug):
+        # A crashed session stays ACTIVE but goes stale; it must not be counted
+        # as occupying the checkout (threshold_hours=0 ages out even a fresh one).
+        store.create_session(
+            project_slug=project_slug, intent="Crashed session",
+            worktree_root="/Users/dev/repo",
+        )
+        fresh = store.get_fresh_sessions_for_worktree("/Users/dev/repo", threshold_hours=0)
+        assert fresh == []
+
+    def test_launch_plan_skips_malformed_timestamp(self, project_slug):
+        # A corrupt timestamp on one record must not crash the whole check
+        # (which would silently disable isolation); the record is skipped.
+        s = store.create_session(
+            project_slug=project_slug, intent="Corrupt timestamp",
+            worktree_root="/Users/dev/repo",
+        )
+        s.last_heartbeat = "not-a-timestamp"
+        s.started_at = "not-a-timestamp"
+        store._save_session(s)
+        result = _dispatch(ns(command="launch-plan", path="/Users/dev/repo"))
+        assert result == "MAIN"
+
     def test_cleanup_locks(self):
         orphan = store.SESSIONS_DIR / "sess_orphan_0000.lock"
         orphan.touch()
