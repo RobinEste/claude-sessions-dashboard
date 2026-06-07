@@ -849,7 +849,7 @@ def register_launch(
     claude_session_id: str,
     project_slug: str,
     worktree_root: str | None = None,
-    intent: str = "(launch — sessie-start volgt)",
+    intent: str | None = None,
 ) -> Session:
     """Idempotent launch registration keyed on the harness session id.
 
@@ -861,14 +861,18 @@ def register_launch(
     """
     if not claude_session_id:
         raise ValueError("claude_session_id is required")
+    # Slugify zoals register_project, zodat een rauwe repo-basename met hoofdletters/
+    # underscores (bv. AI-Readiness-Audit) niet stil door validate_project_slug valt.
+    project_slug = _slugify(project_slug)
     for session in get_active_sessions():
         if session.claude_session_id == claude_session_id:
             return heartbeat(session.session_id) or session
-    real_root = os.path.realpath(worktree_root) if worktree_root else None
+    # Geen store-tijd realpath: _worktree_key normaliseert (realpath + casefold) bij de
+    # vergelijking — dat is de enige normalisatie-laag (robuust tegen latere symlinks).
     return create_session(
         project_slug=project_slug,
-        intent=intent,
-        worktree_root=real_root,
+        intent=intent or "(launch — sessie-start volgt)",
+        worktree_root=worktree_root,
         claude_session_id=claude_session_id,
     )
 

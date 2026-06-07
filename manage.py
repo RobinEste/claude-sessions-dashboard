@@ -56,7 +56,7 @@ def main() -> None:
     p.add_argument("--project", required=True, help="Project slug")
     p.add_argument("--worktree-root", default=None, help="Absolute git work-tree root")
     p.add_argument(
-        "--intent", default="(launch — sessie-start volgt)", help="Placeholder intent"
+        "--intent", default=None, help="Placeholder intent (default: register_launch-default)"
     )
 
     p = sub.add_parser("get-session", help="Get session details")

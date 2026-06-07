@@ -1034,6 +1034,14 @@ class TestRegisterLaunch:
         b = store.register_launch(claude_session_id="claude-B", project_slug="test-project")
         assert a.session_id != b.session_id
 
+    def test_slugifies_raw_repo_basename(self):
+        # Een rauwe repo-basename (hoofdletters/underscores, bv. AI-Readiness-Audit)
+        # moet genormaliseerd worden i.p.v. stil door validate_project_slug te vallen.
+        s = store.register_launch(
+            claude_session_id="claude-slug", project_slug="AI_Readiness Audit"
+        )
+        assert s.project_slug == "ai-readiness-audit"
+
     def test_claude_session_id_survives_roundtrip(self):
         s = store.register_launch(
             claude_session_id="claude-rt", project_slug="test-project"
