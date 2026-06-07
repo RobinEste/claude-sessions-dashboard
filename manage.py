@@ -158,6 +158,16 @@ def main() -> None:
         help="Git work-tree root being entered (git rev-parse --show-toplevel)",
     )
 
+    p = sub.add_parser(
+        "fresh-sessions",
+        help="List fresh active sessions occupying a work-tree (JSON) — used by the "
+             "pre-commit occupancy-guard to detect a contested checkout",
+    )
+    p.add_argument(
+        "--path", required=True,
+        help="Git work-tree root (git rev-parse --show-toplevel)",
+    )
+
     p = sub.add_parser("archive", help="Archive old completed sessions")
     p.add_argument("--days", type=int, help="Archive sessions older than N days (default: config)")
     p.add_argument(
@@ -386,6 +396,17 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
     if cmd == "launch-plan":
         occupied = store.get_fresh_sessions_for_worktree(args.path)
         return "WORKTREE" if occupied else "MAIN"
+
+    if cmd == "fresh-sessions":
+        sessions = store.get_fresh_sessions_for_worktree(args.path)
+        return [
+            {
+                "session_id": s.session_id,
+                "claude_session_id": s.claude_session_id,
+                "started_at": s.started_at,
+            }
+            for s in sessions
+        ]
 
     if cmd == "cleanup-stale":
         cleaned = store.cleanup_stale_sessions()
