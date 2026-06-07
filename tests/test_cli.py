@@ -287,6 +287,22 @@ class TestQueryCommands:
         result = _dispatch(ns(command="launch-plan", path="/Users/dev/repo"))
         assert result == "MAIN"
 
+    def test_fresh_sessions_lists_occupants(self, project_slug):
+        # fresh-sessions geeft de verse bezetters van een checkout als JSON-lijst,
+        # met de velden die de pre-commit occupancy-guard nodig heeft.
+        store.register_launch(
+            claude_session_id="claude-1", project_slug=project_slug,
+            worktree_root="/Users/dev/repo",
+        )
+        store.register_launch(
+            claude_session_id="claude-2", project_slug=project_slug,
+            worktree_root="/Users/dev/repo",
+        )
+        result = _dispatch(ns(command="fresh-sessions", path="/Users/dev/repo"))
+        assert isinstance(result, list)
+        assert {r["claude_session_id"] for r in result} == {"claude-1", "claude-2"}
+        assert all("session_id" in r and "started_at" in r for r in result)
+
     def test_launch_plan_ignores_stale_session(self, project_slug):
         # A crashed session stays ACTIVE but goes stale; it must not be counted
         # as occupying the checkout (threshold_hours=0 ages out even a fresh one).
