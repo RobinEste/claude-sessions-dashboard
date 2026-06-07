@@ -47,6 +47,18 @@ def main() -> None:
         help="Absolute git work-tree root (rev-parse --show-toplevel) for shared-checkout detection",
     )
 
+    p = sub.add_parser(
+        "register-launch",
+        help="Idempotent launch registration keyed on the harness session id "
+             "(SessionStart hook): create or heartbeat; prints the dashboard session_id",
+    )
+    p.add_argument("--claude-session-id", required=True, help="CLAUDE_CODE_SESSION_ID")
+    p.add_argument("--project", required=True, help="Project slug")
+    p.add_argument("--worktree-root", default=None, help="Absolute git work-tree root")
+    p.add_argument(
+        "--intent", default="(launch — sessie-start volgt)", help="Placeholder intent"
+    )
+
     p = sub.add_parser("get-session", help="Get session details")
     p.add_argument("session_id")
 
@@ -251,6 +263,15 @@ def _dispatch(args: argparse.Namespace) -> dict | list:
             worktree_root=args.worktree_root,
         )
         return asdict(session)
+
+    if cmd == "register-launch":
+        session = store.register_launch(
+            claude_session_id=args.claude_session_id,
+            project_slug=args.project,
+            worktree_root=args.worktree_root,
+            intent=args.intent,
+        )
+        return session.session_id
 
     if cmd == "get-session":
         try:

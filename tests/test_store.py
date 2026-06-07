@@ -1000,3 +1000,64 @@ class TestSessionIndex:
         assert s1.session_id in ids
         assert s3.session_id in ids
         assert s2.session_id not in ids
+
+
+class TestRegisterLaunch:
+    """Launch-onafhankelijke, idempotente registratie (PLAN-2026-032 keystone)."""
+
+    def test_creates_new_session_with_claude_id(self):
+        s = store.register_launch(
+            claude_session_id="claude-abc-123",
+            project_slug="test-project",
+            worktree_root="/tmp/wt-a",
+        )
+        assert s.claude_session_id == "claude-abc-123"
+        assert s.status == SessionStatus.ACTIVE
+
+    def test_idempotent_same_claude_id_reuses_one_record(self):
+        s1 = store.register_launch(
+            claude_session_id="claude-same", project_slug="test-project"
+        )
+        s2 = store.register_launch(
+            claude_session_id="claude-same", project_slug="test-project"
+        )
+        assert s1.session_id == s2.session_id
+        active = [
+            x
+            for x in store.get_active_sessions()
+            if x.claude_session_id == "claude-same"
+        ]
+        assert len(active) == 1
+
+    def test_distinct_claude_ids_create_distinct_sessions(self):
+        a = store.register_launch(claude_session_id="claude-A", project_slug="test-project")
+        b = store.register_launch(claude_session_id="claude-B", project_slug="test-project")
+        assert a.session_id != b.session_id
+
+    def test_claude_session_id_survives_roundtrip(self):
+        s = store.register_launch(
+            claude_session_id="claude-rt", project_slug="test-project"
+        )
+        reloaded = store.get_session(s.session_id)
+        assert reloaded is not None
+        assert reloaded.claude_session_id == "claude-rt"
+
+
+class TestWorktreeKey:
+    """Padnormalisatie zodat symlink/casing-routes naar één checkout matchen."""
+
+    def test_casefold_unifies_casing(self):
+        # /ODIN vs /Odin = zelfde map op case-insensitive FS
+        assert store._worktree_key("/Users/x/ODIN/ccf") == store._worktree_key(
+            "/Users/x/Odin/ccf"
+        )
+
+    def test_symlink_resolves_to_same_key(self, tmp_path):
+        real = tmp_path / "real_repo"
+        real.mkdir()
+        link = tmp_path / "link_repo"
+        link.symlink_to(real)
+        assert store._worktree_key(str(link)) == store._worktree_key(str(real))
+
+    def test_none_is_empty_key(self):
+        assert store._worktree_key(None) == ""
