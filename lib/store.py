@@ -221,6 +221,7 @@ def create_session(
     roadmap_ref: str | None = None,
     git_branch: str = "main",
     worktree_root: str | None = None,
+    claude_session_id: str | None = None,
 ) -> Session:
     """Create a new active session."""
     validate_project_slug(project_slug)
@@ -228,6 +229,7 @@ def create_session(
     roadmap_ref = validate_optional_string(roadmap_ref, "roadmap_ref", MAX_ROADMAP_REF)
     git_branch = validate_git_branch(git_branch)
     worktree_root = validate_optional_string(worktree_root, "worktree_root", MAX_WORKTREE_ROOT)
+    claude_session_id = validate_optional_string(claude_session_id, "claude_session_id", 128)
     session = Session(
         session_id=generate_session_id(),
         project_slug=project_slug,
@@ -238,6 +240,7 @@ def create_session(
         last_heartbeat=_now_iso(),
         git_branch=git_branch,
         worktree_root=worktree_root,
+        claude_session_id=claude_session_id,
     )
     _save_session(session)
     _refresh_project_state(project_slug)
@@ -276,6 +279,7 @@ def _session_from_dict(data: dict) -> Session:
         events=data.get("events", []),
         git_branch=data.get("git_branch", "main"),
         worktree_root=data.get("worktree_root"),
+        claude_session_id=data.get("claude_session_id"),
         files_changed=data.get("files_changed", []),
         commits=data.get("commits", []),
         decisions=data.get("decisions", []),
@@ -285,7 +289,7 @@ def _session_from_dict(data: dict) -> Session:
     )
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _migrate_session_data(data: dict) -> dict:
@@ -297,6 +301,9 @@ def _migrate_session_data(data: dict) -> dict:
     if version < 3:
         # v2 → v3: add worktree_root field
         data.setdefault("worktree_root", None)
+    if version < 4:
+        # v3 → v4: add claude_session_id field
+        data.setdefault("claude_session_id", None)
     if version < SCHEMA_VERSION:
         data["schema_version"] = SCHEMA_VERSION
     return data
@@ -822,6 +829,50 @@ def get_stale_sessions(threshold_hours: int | None = None) -> list[Session]:
     return stale
 
 
+def _worktree_key(path: str | None) -> str:
+    """Comparison key for a worktree root: realpath + casefold.
+
+    The same checkout can be reached via a symlink (e.g. ~/Projects/X) or with
+    different casing (macOS is case-insensitive: /Users/robin/Odin vs /ODIN).
+    Resolving the real path and case-folding makes those routes compare equal,
+    so two sessions on one physical checkout detect each other.
+    """
+    if not path:
+        return ""
+    try:
+        return os.path.realpath(path).casefold()
+    except OSError:
+        return path.casefold()
+
+
+def register_launch(
+    claude_session_id: str,
+    project_slug: str,
+    worktree_root: str | None = None,
+    intent: str = "(launch — sessie-start volgt)",
+) -> Session:
+    """Idempotent launch registration keyed on the harness session id.
+
+    Called by the SessionStart hook on every launch (independent of /sessie-start),
+    so the dashboard has ground-truth about every live session — including
+    daily-first/IDE launches that never run /sessie-start. If an active session
+    with this claude_session_id already exists, heartbeat it and return it;
+    otherwise create a fresh one.
+    """
+    if not claude_session_id:
+        raise ValueError("claude_session_id is required")
+    for session in get_active_sessions():
+        if session.claude_session_id == claude_session_id:
+            return heartbeat(session.session_id) or session
+    real_root = os.path.realpath(worktree_root) if worktree_root else None
+    return create_session(
+        project_slug=project_slug,
+        intent=intent,
+        worktree_root=real_root,
+        claude_session_id=claude_session_id,
+    )
+
+
 def get_fresh_sessions_for_worktree(
     worktree_root: str, threshold_hours: int | None = None
 ) -> list[Session]:
@@ -839,8 +890,9 @@ def get_fresh_sessions_for_worktree(
 
     now = datetime.now(UTC)
     fresh = []
+    target_key = _worktree_key(worktree_root)
     for session in get_active_sessions():
-        if session.worktree_root != worktree_root:
+        if _worktree_key(session.worktree_root) != target_key:
             continue
         reference = session.last_heartbeat or session.started_at
         if not reference:

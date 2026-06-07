@@ -49,6 +49,7 @@ class Session:
     events: list[dict] = field(default_factory=list)
     git_branch: str = "main"
     worktree_root: str | None = None  # Absolute git work-tree root (rev-parse --show-toplevel)
+    claude_session_id: str | None = None  # CLAUDE_CODE_SESSION_ID (launch-registratie-sleutel)
     files_changed: list[str] = field(default_factory=list)
     commits: list[dict] = field(default_factory=list)
     decisions: list[str] = field(default_factory=list)
